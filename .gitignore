@@ -11,6 +11,8 @@ frontend/!.yarn/plugins
 frontend/!.yarn/releases
 frontend/!.yarn/versions
 
+frontend/.env.local
+
 # testing
 frontend/coverage
 
@@ -40,3 +42,7 @@ frontend/.vercel
 # typescript
 frontend/*.tsbuildinfo
 frontend/next-env.d.ts
+ 
+backend/.venv/*
+
+backend/.env
