@@ -171,6 +171,13 @@ async def invoke_workflow(req: InvokeRequest = Body(...)):
     )
     return {"result": result}
 
+
+@app.get("/queue")
+async def get_triage_queue():
+    """FastAPI endpoint to get the current triage queue."""
+    queue_snapshot = await redis_client.zrange("triage_queue", 0, -1, withscores=True)
+    return {"queue_snapshot": queue_snapshot}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
