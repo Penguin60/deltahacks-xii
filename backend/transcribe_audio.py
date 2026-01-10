@@ -50,40 +50,44 @@ def transcribe_url(src: str):
 
     print(response.json())
 
-load_dotenv()
 
-url = "https://openrouter.ai/api/v1/chat/completions"
-headers = {
-    "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-    "Content-Type": "application/json"
-}
+# NOTE: Leo I changed this to be a standalone script to test the transcribe_url function.
+# If you need to test the transcribe_url function, you can run this script.
+if __name__ == "__main__":
+    load_dotenv()
 
-# Read and encode the audio file
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+        "Content-Type": "application/json"
+    }
 
-audio_path = "transcribe_test.wav"
+    # Read and encode the audio file
 
-base64_audio = encode_audio_to_base64(audio_path)
+    audio_path = "transcribe_test.wav"
 
-messages = [{
-        "role": "user",
-        "content": [
-            {
-                "type": "text",
-                "text": "Please transcribe this audio file."
-            },
-            {
-                "type": "input_audio",
-                "input_audio": {
-                    "data": base64_audio,
-                    "format": "wav"
+    base64_audio = encode_audio_to_base64(audio_path)
+
+    messages = [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Please transcribe this audio file."
+                },
+                {
+                    "type": "input_audio",
+                    "input_audio": {
+                        "data": base64_audio,
+                        "format": "wav"
+                    }
                 }
-            }
-        ]
-}]
-payload = {
-    "model": "mistralai/voxtral-small-24b-2507",
-    "messages": messages
-}
-response = requests.post(url, headers=headers, json=payload)
+            ]
+    }]
+    payload = {
+        "model": "mistralai/voxtral-small-24b-2507",
+        "messages": messages
+    }
+    response = requests.post(url, headers=headers, json=payload)
 
-print(response.json())
+    print(response.json())

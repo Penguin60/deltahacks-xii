@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 from datetime import datetime
 from twilio.twiml.voice_response import VoiceResponse
-from transcribe_audio import transcribe_url
+from backend.transcribe_audio import transcribe_url
 
 
 # Construct the absolute path to the .env file and load it
