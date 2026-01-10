@@ -9,5 +9,6 @@ dependencies = [
     "langchain>=1.2.3",
     "langchain-pinecone>=0.2.13",
     "pinecone-client>=6.0.0",
+    "python-dotenv>=1.2.1",
     "uvicorn>=0.40.0",
 ]
