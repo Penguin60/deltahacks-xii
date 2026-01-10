@@ -34,6 +34,16 @@ from backend.vector_store import find_similar_incidents
 
 app = FastAPI()
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class AgentState(TypedDict, total=False):
     messages: Annotated[List[BaseMessage], add_messages]
     is_duplicate: NotRequired[bool]
