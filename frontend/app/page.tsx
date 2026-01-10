@@ -1,4 +1,5 @@
 import TranscriptionLine from "@/components/TranscriptionLine";
+import QueuedCall from "@/components/QueuedCall";
 import Image from "next/image";
 
 export default function Home() {
