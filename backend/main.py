@@ -23,39 +23,61 @@ model = ChatGoogleGenerativeAI(
     temperature=0.7
 )
 
+import json
+import time
+from backend.redis_client import redis_client
+
+
 app = FastAPI()
 
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
 
 # Agent1 node: First agent processes input
-def agent1(state: AgentState):
-    msg = model.invoke(state["messages"])
+async def agent1(state: AgentState):
+    msg = await model.ainvoke(state["messages"])
     return {"messages": [msg]}
 
 # Middleware node: Custom function between agents (e.g., log/transform state)
-def middleware(state: AgentState):
+async def middleware(state: AgentState):
     # Example: Log last message content and add middleware stamp
     last_msg = state["messages"][-1].content
     print(f"Middleware: Processed '{last_msg[:50]}...'")  # Logging example
     # Transform: Append middleware note
-    stamped_msg = model.invoke([f"Add middleware note to: {last_msg}"])
+    stamped_msg = await model.ainvoke([f"Add middleware note to: {last_msg}"])
     return {"messages": [stamped_msg]}
 
 # Agent2 node: Second agent finalizes
-def agent2(state: AgentState):
-    msg = model.invoke(state["messages"])
+async def agent2(state: AgentState):
+    msg = await model.ainvoke(state["messages"])
     return {"messages": [msg]}
 
-# Build linear graph: START -> agent1 -> middleware -> agent2 -> END
+async def add_to_triage_queue(state: AgentState):
+    """
+    Node to add the final state to a Redis Sorted Set (ZSET) for triage.
+    """
+    print("Adding item to triage queue.")
+    # The final message from the graph is the one we want to queue
+    final_message = state["messages"][-1]
+    # Use a timestamp as the score for ordering
+    score = time.time()
+    # Serialize the message content for storage in Redis
+    item = json.dumps({"content": final_message.content, "type": final_message.type})
+    await redis_client.zadd("triage_queue", {item: score})
+    return {} # This node doesn't modify the state, just interacts with an external system
+
+# Build linear graph: START -> agent1 -> middleware -> agent2 -> queue -> END
 workflow = StateGraph(state_schema=AgentState)
 workflow.add_node("agent1", agent1)
 workflow.add_node("middleware", middleware)
 workflow.add_node("agent2", agent2)
+workflow.add_node("add_to_triage_queue", add_to_triage_queue)
+
 workflow.add_edge(START, "agent1")
 workflow.add_edge("agent1", "middleware")
 workflow.add_edge("middleware", "agent2")
-workflow.add_edge("agent2", END)
+workflow.add_edge("agent2", "add_to_triage_queue")
+workflow.add_edge("add_to_triage_queue", END)
 
 graph = workflow.compile()  # No checkpointer for stateless endpoint demo
 
@@ -66,7 +88,7 @@ class InvokeRequest(BaseModel):
 @app.post("/invoke")
 async def invoke_workflow(req: InvokeRequest = Body(...)):
     """FastAPI endpoint to run the linear workflow."""
-    result = graph.invoke(
+    result = await graph.ainvoke(
         {"messages": req.messages},
         req.config  # Optional: thread_id, etc. for persistence if checkpointer added
     )

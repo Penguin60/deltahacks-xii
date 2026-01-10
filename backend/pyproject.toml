@@ -13,5 +13,6 @@ dependencies = [
     "pinecone-client>=6.0.0",
     "pydantic>=2.12.5",
     "python-dotenv>=1.2.1",
+    "redis>=7.1.0",
     "uvicorn>=0.40.0",
 ]
