@@ -47,3 +47,4 @@ backend/.venv/*
 
 backend/.env
 backend/__pycache__
+backend/dump.rdb # redis 
