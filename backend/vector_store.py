@@ -2,6 +2,7 @@ import os
 import time
 import json
 import uuid
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from pinecone import Pinecone
 from typing import TypedDict, Literal
@@ -127,19 +128,47 @@ def load_and_add_incidents(json_file: str):
 def _norm_text(s: str) -> str:
     return " ".join(s.lower().split()) if isinstance(s, str) else ""
 
-def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, top_k: int = 5) -> list:
-    """
-    Find similar or duplicate incidents in the database.
+def _time_within_window(time1: str, time2: str, window_minutes: int) -> bool:
+    """Check if two times are within a window of each other (same day assumed)."""
+    try:
+        t1 = datetime.strptime(time1, "%H:%M")
+        t2 = datetime.strptime(time2, "%H:%M")
+        diff = abs((t1 - t2).total_seconds() / 60)
+        return diff <= window_minutes
+    except (ValueError, TypeError):
+        return False
 
-    Flags:
-    - is_exact_duplicate: normalized `chunk_text` matches an existing record exactly
-    - score: semantic similarity score from Pinecone search
+def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, top_k: int = 10, 
+                           match_incident_type: bool = True, match_postal_code: bool = True, 
+                           match_date: bool = True, match_time: bool = True, 
+                           time_window_minutes: int = 30) -> list:
+    """
+    Find similar or duplicate incidents in the database, filtered by metadata.
+
+    Args:
+        json_data: JSON string containing incident data
+        similarity_threshold: Score threshold (0-1) for semantic similarity
+        top_k: Number of results to fetch from search
+        match_incident_type: Only return incidents with same incidentType
+        match_postal_code: Only return incidents with same postal_code
+        match_date: Only return incidents on the same date
+        match_time: Only return incidents within time_window_minutes of each other
+        time_window_minutes: Time window in minutes for matching (default: 30)
+
+    Returns:
+        list: Similar incidents with flags for exact duplicates
     """
     try:
         incident = json.loads(json_data)
         query_text = incident.get("chunk_text", "")
         if not query_text:
             return []
+
+        # Get metadata from input incident
+        input_type = incident.get("incidentType", "")
+        input_postal = incident.get("postal_code", "")
+        input_date = incident.get("date", "")
+        input_time = incident.get("time", "")
 
         results = dense_index.search(
             namespace="incidents",
@@ -156,12 +185,29 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
 
         q_norm = _norm_text(query_text)
         similar_incidents = []
+        
         for hit in results.get('result', {}).get('hits', []):
             hit_text = hit['fields'].get('chunk_text', '')
+            hit_type = hit['fields'].get('incidentType', '')
+            hit_postal = hit['fields'].get('postal_code', '')
+            hit_date = hit['fields'].get('date', '')
+            hit_time = hit['fields'].get('time', '')
+            
+            # Apply metadata filters
+            if match_incident_type and hit_type != input_type:
+                continue
+            if match_postal_code and hit_postal != input_postal:
+                continue
+            if match_date and hit_date != input_date:
+                continue
+            if match_time and not _time_within_window(input_time, hit_time, time_window_minutes):
+                continue
+            
             h_norm = _norm_text(hit_text)
             score = float(hit.get('_score', 0.0))
 
             is_exact = (q_norm == h_norm)
+            
             # Include exact matches OR anything above the threshold
             if is_exact or score >= similarity_threshold:
                 similar_incidents.append({
@@ -169,10 +215,16 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
                     "score": round(score, 4),
                     "is_exact_duplicate": is_exact,
                     "chunk_text": hit_text,
-                    "incidentType": hit['fields'].get('incidentType', ''),
-                    "postal_code": hit['fields'].get('postal_code', ''),
-                    "date": hit['fields'].get('date', ''),
-                    "time": hit['fields'].get('time', '')
+                    "incidentType": hit_type,
+                    "postal_code": hit_postal,
+                    "date": hit_date,
+                    "time": hit_time,
+                    "metadata_match": {
+                        "incidentType": hit_type == input_type,
+                        "postal_code": hit_postal == input_postal,
+                        "date": hit_date == input_date,
+                        "time_within_window": _time_within_window(input_time, hit_time, time_window_minutes)
+                    }
                 })
 
         return similar_incidents
@@ -227,9 +279,9 @@ print("search complete.")
 
 # test find_similar_incidents
 test_incident = {
-    "chunk_text": "Crowd stampede",
-    "incidentType": "Crowd Stampede",
-    "postal_code": "10008",
+    "chunk_text": "Fire in warehouse",
+    "incidentType": "Fire",
+    "postal_code": "10004",
     "severity_level": "3",
     "date": "2026-01-10",
     "time": "20:15"
