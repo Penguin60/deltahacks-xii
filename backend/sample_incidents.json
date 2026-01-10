@@ -1,82 +1,74 @@
 [
   {
-    "chunk_text": "Structure fire at downtown warehouse. Multiple units responding.",
+    "id": "01H8XGJWBWBAQ4J1VDB1M9X519",
     "incidentType": "Fire",
-    "postal_code": "10001",
-    "severity_level": "3",
-    "date": "2026-01-10",
-    "time": "18:30"
+    "location": "M5V 2T6",
+    "date": "01/10/2026",
+    "time": "18:30",
+    "message": "Uh, yeah, hello? There's a huge fire... looks like a warehouse downtown. It's getting big.",
+    "desc": "Structure fire reported at downtown warehouse.",
+    "suggested_actions": "dispatch firefighters",
+    "status": "in progress",
+    "severity_level": "3"
   },
   {
-    "chunk_text": "Armed robbery in progress at convenience store on 5th Avenue. Suspect armed.",
+    "id": "01H8XJWBWDNA25VSPM39X2E892",
     "incidentType": "Armed Robbery",
-    "postal_code": "10002",
-    "severity_level": "3",
-    "date": "2026-01-10",
-    "time": "18:45"
+    "location": "H2Y 1C6",
+    "date": "01/10/2026",
+    "time": "18:45",
+    "message": "Help! The convenience store on the corner of Sainte-Catherine and a guy has a gun, he's robbing the place!",
+    "desc": "Armed robbery in progress at a convenience store.",
+    "suggested_actions": "dispatch officer",
+    "status": "in progress",
+    "severity_level": "3"
   },
   {
-    "chunk_text": "Vehicle collision on Highway 101 near exit 42. Two cars involved with minor injuries.",
+    "id": "01H8XJWBWGQZ7J6YDB1M9X520A",
     "incidentType": "Car Theft",
-    "postal_code": "10003",
-    "severity_level": "2",
-    "date": "2026-01-10",
-    "time": "19:00"
+    "location": "V6B 4Y8",
+    "date": "01/10/2026",
+    "time": "19:00",
+    "message": "My car was just stolen. It's a blue Honda Civic, license plate... I don't remember. From the street parking on Granville.",
+    "desc": "Blue Honda Civic reported stolen from street parking.",
+    "suggested_actions": "dispatch officer",
+    "status": "completed",
+    "severity_level": "2"
   },
   {
-    "chunk_text": "Mass fire spreading rapidly in warehouse district threatening nearby homes.",
-    "incidentType": "Mass Fire",
-    "postal_code": "10004",
-    "severity_level": "3",
-    "date": "2026-01-10",
-    "time": "19:15"
-  },
-  {
-    "chunk_text": "Break-in at jewelry store on Main Street. Alarm triggered. Police responding.",
-    "incidentType": "Break In",
-    "postal_code": "10005",
-    "severity_level": "2",
-    "date": "2026-01-10",
-    "time": "19:30"
-  },
-  {
-    "chunk_text": "Shoplifting in progress at downtown mall. Security pursuing suspect.",
-    "incidentType": "Theft",
-    "postal_code": "10006",
-    "severity_level": "1",
-    "date": "2026-01-10",
-    "time": "19:45"
-  },
-  {
-    "chunk_text": "Pickpocket incident reported in busy transit station.",
-    "incidentType": "PickPocket",
-    "postal_code": "10007",
-    "severity_level": "1",
-    "date": "2026-01-10",
-    "time": "20:00"
-  },
-  {
-    "chunk_text": "Crowd stampede at event venue. Multiple injuries reported.",
-    "incidentType": "Crowd Stampede",
-    "postal_code": "10008",
-    "severity_level": "3",
-    "date": "2026-01-10",
-    "time": "20:15"
-  },
-  {
-    "chunk_text": "Public nuisance complaint: Loud noise and disturbance in residential area.",
+    "id": "01H8XJWBWJABCDE1234567890B",
     "incidentType": "Public Nuisance",
-    "postal_code": "10009",
-    "severity_level": "1",
-    "date": "2026-01-10",
-    "time": "20:30"
+    "location": "T2P 2V6",
+    "date": "01/10/2026",
+    "time": "20:30",
+    "message": "There's a party next door and it's so loud, the music is shaking my windows. It's been hours.",
+    "desc": "Loud noise and disturbance complaint in a residential area.",
+    "suggested_actions": "console",
+    "status": "completed",
+    "severity_level": "1"
   },
   {
-    "chunk_text": "Terrorist attack suspected at government building. Bomb squad en route.",
-    "incidentType": "Terrorist Attack",
-    "postal_code": "10010",
-    "severity_level": "3",
-    "date": "2026-01-10",
-    "time": "20:45"
+    "id": "01H8XJWBWKZYXWV987654321C",
+    "incidentType": "PickPocket",
+    "location": "K1P 1J1",
+    "date": "01/10/2026",
+    "time": "20:00",
+    "message": "I think my wallet was just stolen. I was in the ByWard Market and someone bumped into me.",
+    "desc": "Wallet reported stolen, suspecting pickpocket in a crowded market.",
+    "suggested_actions": "ask for more details",
+    "status": "in progress",
+    "severity_level": "1"
+  },
+  {
+    "id": "01H8XJWBWMD4E5F6G7H8J9K0L1",
+    "incidentType": "Break In",
+    "location": "R3B 0N2",
+    "date": "01/10/2026",
+    "time": "22:15",
+    "message": "Someone broke my back window and is inside my house, I can hear them downstairs.",
+    "desc": "Active break-in at a residence, suspect currently inside.",
+    "suggested_actions": "dispatch officer",
+    "status": "in progress",
+    "severity_level": "2"
   }
 ]
