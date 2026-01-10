@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 from datetime import datetime
 from twilio.twiml.voice_response import VoiceResponse
+from transcribe_audio import transcribe_url
 
 
 # Construct the absolute path to the .env file and load it
@@ -189,15 +190,8 @@ call_times = {}
 
 @app.post("/call")
 async def incoming_call(CallSid: str = Form(None)):
-    # form = await request.form()
-    # print(form)
-    # CallSid = form.get("CallSid")
-    # print(CallSid)
-    # if CallSid:
-    #     call_times[CallSid] = datetime.utcnow().isoformat()
-    # base = str(request.base_url).rstrip("/")
-    # action_url = f"{base}/recording-finished?CallSid={CallSid}"
     response = VoiceResponse()
+    call_times[CallSid] = datetime.utcnow().isoformat()
     response.say("911, please describe your emergency. Press the star key when you are finished.")
     response.record(finish_on_key="*", action=f"/recording-finished?CallSid={CallSid}", method="POST")
     return Response(content=str(response), media_type="application/xml")
@@ -213,9 +207,11 @@ async def upload_recording(request: Request):
     print(f"Recording SID: {recording_sid}")
     print(f"Call SID: {call_sid}")
     print(f"Call started at: {call_start_time}")
+    
     response = VoiceResponse()
     response.say("Thank you for calling. A dispatcher will contact you shortly.")
     response.hangup()
+    transcribe_url(recording_url)
     return Response(content=str(response), media_type="application/xml")
 
 
