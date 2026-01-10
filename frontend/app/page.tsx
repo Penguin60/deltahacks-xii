@@ -1,6 +1,4 @@
-import TranscriptionLine from "@/components/TranscriptionLine";
-import QueuedCall from "@/components/QueuedCall";
-import Image from "next/image";
+import Queue from "@/components/Queue";
 
 export default function Home() {
 	return (
@@ -9,12 +7,12 @@ export default function Home() {
                 <h1 className="text-white font-bold text-xl">Delta Dispatch</h1>
             </div>
             <div className="flex flex-row flex-1 w-full mt-3">
-                <div className="flex flex-col flex-1 bg-zinc-800 flex-[1.5] p-3">
-                    <h1 className="text-white font-bold text-xl">Queue</h1>
+                <div className="flex flex-col flex-1 bg-zinc-800 flex-[1.5]">
+                  <Queue />
                 </div>
                 <div className="flex flex-col flex-1 flex-[4] mx-3">
                     <div className="flex flex-[5] bg-zinc-800 mb-3">
-
+                      
                     </div>
                     <div className="flex flex-[2.5] bg-zinc-800">
 
