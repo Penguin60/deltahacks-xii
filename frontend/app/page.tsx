@@ -7,7 +7,8 @@ export default function Home() {
                 <h1 className="text-white font-bold text-xl">Delta Dispatch</h1>
             </div>
             <div className="flex flex-row flex-1 w-full mt-3">
-                <div className="flex flex-col flex-1 bg-zinc-800 flex-[1.5]">
+                <div className="flex flex-col flex-1 bg-zinc-800 flex-[1.5] p-3">
+                  <h1 className="text-white font-bold text-xl">Queue</h1>
                   <Queue />
                 </div>
                 <div className="flex flex-col flex-1 flex-[4] mx-3">
