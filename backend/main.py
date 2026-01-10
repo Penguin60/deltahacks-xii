@@ -8,9 +8,12 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 import operator
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, Body, Response, Request, Form
 from pydantic import BaseModel
 from typing import List, Dict, Any
+from datetime import datetime
+from twilio.twiml.voice_response import VoiceResponse
+
 
 # Construct the absolute path to the .env file and load it
 env_path = Path(__file__).parent / '.env'
@@ -92,7 +95,42 @@ async def invoke_workflow(req: InvokeRequest = Body(...)):
         {"messages": req.messages},
         req.config  # Optional: thread_id, etc. for persistence if checkpointer added
     )
+
+
+
     return {"result": result}
+
+call_times = {}
+
+@app.post("/call")
+async def incoming_call(CallSid: str = Form(None)):
+    # form = await request.form()
+    # print(form)
+    # CallSid = form.get("CallSid")
+    # print(CallSid)
+    # if CallSid:
+    #     call_times[CallSid] = datetime.utcnow().isoformat()
+    # base = str(request.base_url).rstrip("/")
+    # action_url = f"{base}/recording-finished?CallSid={CallSid}"
+    response = VoiceResponse()
+    response.say("911, please describe your emergency. Press the pound button when you are finished.")
+    response.record(finish_on_key="*", action="/recording-finished", method="POST")
+    response.say("Thank you. Please stay on the line for further instructions.")
+    return Response(content=str(response), media_type="application/xml")
+
+@app.post("/recording-finished")
+async def upload_recording(request: Request):
+    form = await request.form()
+    recording_url = form.get("RecordingUrl")
+    recording_sid = form.get("RecordingSid")
+    call_sid = request.query_params.get("CallSid")
+    call_start_time = call_times.get(call_sid)
+    print(f"Recording URL: {recording_url}")
+    print(f"Recording SID: {recording_sid}")
+    print(f"Call SID: {call_sid}")
+    print(f"Call started at: {call_start_time}")
+    return Response("<Response></Response>", media_type="application/xml")
+
 
 if __name__ == "__main__":
     import uvicorn
