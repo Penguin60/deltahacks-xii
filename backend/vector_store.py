@@ -2,6 +2,7 @@ import os
 import time
 import json
 import uuid
+import re
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from pinecone import Pinecone
@@ -15,61 +16,99 @@ pc = Pinecone(pinecone_key)
 
 index_name = "dispatch"
 if not pc.has_index(index_name):
+    print(f"Creating new Pinecone index '{index_name}'...")
     pc.create_index_for_model(
         name=index_name,
         cloud="aws",
         region="us-east-1",
         embed={
             "model": "llama-text-embed-v2",
-            "field_map": {"text": "chunk_text"}
+            # Updated to use the 'desc' field from the new schema for embeddings
+            "field_map": {"text": "desc"}
         }
     )
+    print("Index created.")
 
 dense_index = pc.Index(index_name)
 
-# Define the schema
+# --- New Schema Definitions (Triage Agent Spec) ---
 IncidentType = Literal[
     "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", 
-    "Theft", "Pick Pocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
+    "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
 ]
+
+SuggestedActions = Literal[
+    "console", "ask for more details", "dispatch officer", 
+    "dispatch first-aiders", "dispatch firefighters"
+]
+
+Status = Literal["in progress", "completed"]
 
 SeverityLevel = Literal["1", "2", "3"]
 
-class DispatchRecord(TypedDict):
-    _id: str
-    chunk_text: str
+class TriageRecord(TypedDict):
+    id: str
     incidentType: IncidentType
-    postal_code: str
-    severity_level: SeverityLevel
+    location: str
     date: str
     time: str
+    message: str
+    desc: str
+    suggested_actions: SuggestedActions
+    status: Status
+    severity_level: SeverityLevel
+# --- End of New Schema ---
 
-def validate_record(record: dict) -> DispatchRecord:
-    """Validate record matches the schema"""
-    required_fields = ["chunk_text", "incidentType", "postal_code", "severity_level", "date", "time"]
+
+def validate_record(record: dict) -> TriageRecord:
+    """Validate record matches the Triage Agent JSON schema"""
+    required_fields = [
+        "id", "incidentType", "location", "date", "time", 
+        "message", "desc", "suggested_actions", "status", "severity_level"
+    ]
     
-    # Check all required fields exist
     for field in required_fields:
         if field not in record:
             raise ValueError(f"Missing required field: {field}")
-    
-    # Validate incidentType
+
+    if not isinstance(record["id"], str) or len(record["id"]) != 26:
+        raise ValueError("Invalid 'id' field. Must be a 26-character ULID string.")
+
     valid_types = {
         "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", 
-        "Theft", "Pick Pocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
+        "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
     }
     if record["incidentType"] not in valid_types:
-        raise ValueError(f"Invalid incidentType. Must be one of: {valid_types}")
-    
-    # Validate severity_level
-    if record["severity_level"] not in ["1", "2", "3"]:
-        raise ValueError(f"Invalid severity_level. Must be '1', '2', or '3'")
-    
-    # Auto-generate _id if not provided
-    if "_id" not in record:
-        record["_id"] = str(uuid.uuid4())
+        raise ValueError(f"Invalid incidentType: {record['incidentType']}")
+
+    if not re.match(r"^[A-Z]\d[A-Z] \d[A-Z]\d$", record["location"]):
+        raise ValueError(f"Invalid location format for postal code: {record['location']}")
+
+    try:
+        datetime.strptime(record["date"], "%m/%d/%Y")
+    except ValueError:
+        raise ValueError(f"Invalid date format for date: {record['date']}. Expected MM/DD/YYYY.")
+
+    try:
+        datetime.strptime(record["time"], "%H:%M")
+    except ValueError:
+        raise ValueError(f"Invalid time format for time: {record['time']}. Expected HH:MM.")
+
+    valid_actions = {
+        "console", "ask for more details", "dispatch officer", 
+        "dispatch first-aiders", "dispatch firefighters"
+    }
+    if record["suggested_actions"] not in valid_actions:
+        raise ValueError(f"Invalid suggested_actions: {record['suggested_actions']}")
+
+    if record["status"] not in {"in progress", "completed"}:
+        raise ValueError(f"Invalid status: {record['status']}. Must be 'in progress' or 'completed'.")
+
+    if record["severity_level"] not in {"1", "2", "3"}:
+        raise ValueError(f"Invalid severity_level: {record['severity_level']}. Must be '1', '2', or '3'.")
     
     return record
+
 
 def add_incident(json_data: str) -> bool:
     """
@@ -82,15 +121,12 @@ def add_incident(json_data: str) -> bool:
         bool: True if successful, False otherwise
     """
     try:
-        # Parse JSON string
         incident = json.loads(json_data)
-        
-        # Validate the record (this will auto-generate _id if missing)
         validated = validate_record(incident)
         
-        # Upsert directly to Pinecone
+        # This function signature is based on other scripts in the project.
         dense_index.upsert_records("incidents", [validated])
-        print(f"Successfully added incident {validated['_id']}")
+        print(f"Successfully added incident {validated['id']}")
         return True
     except json.JSONDecodeError as e:
         print(f"JSON parsing error: {e}")
@@ -121,29 +157,17 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
                            time_window_minutes: int = 30) -> list:
     """
     Find similar or duplicate incidents in the database, filtered by metadata.
-
-    Args:
-        json_data: JSON string containing incident data
-        similarity_threshold: Score threshold (0-1) for semantic similarity
-        top_k: Number of results to fetch from search
-        match_incident_type: Only return incidents with same incidentType
-        match_postal_code: Only return incidents with same postal_code
-        match_date: Only return incidents on the same date
-        match_time: Only return incidents within time_window_minutes of each other
-        time_window_minutes: Time window in minutes for matching (default: 30)
-
-    Returns:
-        list: Similar incidents with flags for exact duplicates
     """
     try:
         incident = json.loads(json_data)
-        query_text = incident.get("chunk_text", "")
+        # Use 'desc' for the query text, matching the new schema
+        query_text = incident.get("desc", "")
         if not query_text:
             return []
 
-        # Get metadata from input incident
+        # Get metadata from input incident using new field names
         input_type = incident.get("incidentType", "")
-        input_postal = incident.get("postal_code", "")
+        input_location = incident.get("location", "")
         input_date = incident.get("date", "")
         input_time = incident.get("time", "")
 
@@ -156,7 +180,8 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
             rerank={
                 "model": "bge-reranker-v2-m3",
                 "top_n": top_k,
-                "rank_fields": ["chunk_text"]
+                # Use 'desc' for reranking
+                "rank_fields": ["desc"]
             }
         )
 
@@ -164,16 +189,17 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
         similar_incidents = []
         
         for hit in results.get('result', {}).get('hits', []):
-            hit_text = hit['fields'].get('chunk_text', '')
+            # Extract fields from result using new names
+            hit_text = hit['fields'].get('desc', '')
             hit_type = hit['fields'].get('incidentType', '')
-            hit_postal = hit['fields'].get('postal_code', '')
+            hit_location = hit['fields'].get('location', '')
             hit_date = hit['fields'].get('date', '')
             hit_time = hit['fields'].get('time', '')
             
             # Apply metadata filters
             if match_incident_type and hit_type != input_type:
                 continue
-            if match_postal_code and hit_postal != input_postal:
+            if match_postal_code and hit_location != input_location:
                 continue
             if match_date and hit_date != input_date:
                 continue
@@ -185,20 +211,19 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
 
             is_exact = (q_norm == h_norm)
             
-            # Include exact matches OR anything above the threshold
             if is_exact or score >= similarity_threshold:
                 similar_incidents.append({
-                    "_id": hit['_id'],
+                    "id": hit['id'],
                     "score": round(score, 4),
                     "is_exact_duplicate": is_exact,
-                    "chunk_text": hit_text,
+                    "desc": hit_text,
                     "incidentType": hit_type,
-                    "postal_code": hit_postal,
+                    "location": hit_location,
                     "date": hit_date,
                     "time": hit_time,
                     "metadata_match": {
                         "incidentType": hit_type == input_type,
-                        "postal_code": hit_postal == input_postal,
+                        "location": hit_location == input_location,
                         "date": hit_date == input_date,
                         "time_within_window": _time_within_window(input_time, hit_time, time_window_minutes)
                     }
@@ -212,4 +237,5 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
     except Exception as e:
         print(f"Error finding similar incidents: {e}")
         return []
+
 
