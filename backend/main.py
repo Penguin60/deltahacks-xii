@@ -32,6 +32,7 @@ app = FastAPI()
 
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
+    is_duplicate: bool
 
 # Agent1 node: First agent processes input
 async def agent1(state: AgentState):
@@ -39,13 +40,42 @@ async def agent1(state: AgentState):
     return {"messages": [msg]}
 
 # Middleware node: Custom function between agents (e.g., log/transform state)
-async def middleware(state: AgentState): # NOTE vector embedding and checking happens here 
-    # Example: Log last message content and add middleware stamp
+async def middleware(state: AgentState):
     last_msg = state["messages"][-1].content
-    print(f"Middleware: Processed '{last_msg[:50]}...'")  # Logging example
-    # Transform: Append middleware note
-    stamped_msg = await model.ainvoke([f"Add middleware note to: {last_msg}"])
-    return {"messages": [stamped_msg]}
+    
+    # Extract incident details to check for duplicates in the vector DB
+    extract_prompt = f"""Extract incident details from the following text into JSON format with fields: 
+    - chunk_text (summary)
+    - incidentType (one of: Public Nuisance, Break In, Armed Robbery, Car Theft, Theft, Pick Pocket, Fire, Mass Fire, Crowd Stampede, Terrorist Attack)
+    - postal_code
+    - severity_level (1, 2, or 3)
+    - date (YYYY-MM-DD)
+    - time (HH:MM)
+    
+    Text: {last_msg}
+    JSON:"""
+    
+    extraction = await model.ainvoke(extract_prompt)
+    json_str = extraction.content.strip()
+    if "```json" in json_str:
+        json_str = json_str.split("```json")[1].split("```")[0].strip()
+    elif "```" in json_str:
+        json_str = json_str.split("```")[1].split("```")[0].strip()
+
+    try:
+        similar = find_similar_incidents(json_str)
+        if similar:
+            print(False)
+            return {"is_duplicate": True}
+    except Exception as e:
+        print(f"Error checking similar incidents: {e}")
+    
+    return {"is_duplicate": False}
+
+def router(state: AgentState):
+    if state.get("is_duplicate"):
+        return END
+    return "agent2"
 
 # Agent2 node: Second agent finalizes
 async def agent2(state: AgentState):
@@ -75,7 +105,7 @@ workflow.add_node("add_to_triage_queue", add_to_triage_queue)
 
 workflow.add_edge(START, "agent1")
 workflow.add_edge("agent1", "middleware")
-workflow.add_edge("middleware", "agent2")
+workflow.add_conditional_edges("middleware", router)
 workflow.add_edge("agent2", "add_to_triage_queue")
 workflow.add_edge("add_to_triage_queue", END)
 
