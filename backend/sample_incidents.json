@@ -1,0 +1,82 @@
+[
+  {
+    "chunk_text": "Structure fire at downtown warehouse. Multiple units responding.",
+    "incidentType": "Fire",
+    "postal_code": "10001",
+    "severity_level": "3",
+    "date": "2026-01-10",
+    "time": "18:30"
+  },
+  {
+    "chunk_text": "Armed robbery in progress at convenience store on 5th Avenue. Suspect armed.",
+    "incidentType": "Armed Robbery",
+    "postal_code": "10002",
+    "severity_level": "3",
+    "date": "2026-01-10",
+    "time": "18:45"
+  },
+  {
+    "chunk_text": "Vehicle collision on Highway 101 near exit 42. Two cars involved with minor injuries.",
+    "incidentType": "Car Theft",
+    "postal_code": "10003",
+    "severity_level": "2",
+    "date": "2026-01-10",
+    "time": "19:00"
+  },
+  {
+    "chunk_text": "Mass fire spreading rapidly in warehouse district threatening nearby homes.",
+    "incidentType": "Mass Fire",
+    "postal_code": "10004",
+    "severity_level": "3",
+    "date": "2026-01-10",
+    "time": "19:15"
+  },
+  {
+    "chunk_text": "Break-in at jewelry store on Main Street. Alarm triggered. Police responding.",
+    "incidentType": "Break In",
+    "postal_code": "10005",
+    "severity_level": "2",
+    "date": "2026-01-10",
+    "time": "19:30"
+  },
+  {
+    "chunk_text": "Shoplifting in progress at downtown mall. Security pursuing suspect.",
+    "incidentType": "Theft",
+    "postal_code": "10006",
+    "severity_level": "1",
+    "date": "2026-01-10",
+    "time": "19:45"
+  },
+  {
+    "chunk_text": "Pickpocket incident reported in busy transit station.",
+    "incidentType": "PickPocket",
+    "postal_code": "10007",
+    "severity_level": "1",
+    "date": "2026-01-10",
+    "time": "20:00"
+  },
+  {
+    "chunk_text": "Crowd stampede at event venue. Multiple injuries reported.",
+    "incidentType": "Crowd Stampede",
+    "postal_code": "10008",
+    "severity_level": "3",
+    "date": "2026-01-10",
+    "time": "20:15"
+  },
+  {
+    "chunk_text": "Public nuisance complaint: Loud noise and disturbance in residential area.",
+    "incidentType": "Public Nuisance",
+    "postal_code": "10009",
+    "severity_level": "1",
+    "date": "2026-01-10",
+    "time": "20:30"
+  },
+  {
+    "chunk_text": "Terrorist attack suspected at government building. Bomb squad en route.",
+    "incidentType": "Terrorist Attack",
+    "postal_code": "10010",
+    "severity_level": "3",
+    "date": "2026-01-10",
+    "time": "20:45"
+  }
+]
