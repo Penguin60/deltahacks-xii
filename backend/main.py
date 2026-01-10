@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 from datetime import datetime
 from twilio.twiml.voice_response import VoiceResponse
-from transcribe_audio import transcribe_url
+from backend.transcribe_audio import transcribe_url
 
 
 # Construct the absolute path to the .env file and load it
@@ -33,6 +33,16 @@ from backend.vector_store import find_similar_incidents
 
 
 app = FastAPI()
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class AgentState(TypedDict, total=False):
     messages: Annotated[List[BaseMessage], add_messages]
@@ -175,16 +185,42 @@ async def invoke_workflow(req: InvokeRequest = Body(...)):
         req.config  # Optional: thread_id, etc. for persistence if checkpointer added
     )
 
-
-
     return {"result": result}
 
-
+"""
+Get the current snapshot of the triage queue as JSON to return to the frontend.
+"""
 @app.get("/queue")
 async def get_triage_queue():
-    """FastAPI endpoint to get the current triage queue."""
-    queue_snapshot = await redis_client.zrange("triage_queue", 0, -1, withscores=True)
-    return {"queue_snapshot": queue_snapshot}
+    """
+    FastAPI endpoint to return the current snapshot of the Redis ZSET triage queue.
+    """
+    # Fetch all items from the 'triage_queue' ZSET, along with their scores.
+    # The score represents the timestamp, used for ordering.
+    raw_queue_items = await redis_client.zrange("triage_queue", 0, -1, withscores=True)
+
+    # Process the raw queue items into a more readable format
+    processed_queue = []
+    for item_json, score in raw_queue_items:
+        try:
+            # item_json is a JSON string, score is a float timestamp
+            item_data = json.loads(item_json)
+            processed_queue.append({
+                "task": item_data,
+                "timestamp": score
+            })
+        except json.JSONDecodeError:
+            # Handle cases where an item in Redis might not be valid JSON
+            processed_queue.append({
+                "task": item_json, # return as raw string if not valid JSON
+                "timestamp": score,
+                "error": "Invalid JSON in queue item"
+            })
+    print(f"Queue snapshot: {processed_queue}")
+    return {"queue_snapshot": processed_queue}
+
+
+
 
 call_times = {}
 
