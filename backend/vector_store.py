@@ -8,7 +8,6 @@ from pinecone import Pinecone
 from typing import TypedDict, Literal
 
 load_dotenv()
-records = []
 
 pinecone_key = os.getenv("PINECONE_API_KEY")
 
@@ -74,7 +73,7 @@ def validate_record(record: dict) -> DispatchRecord:
 
 def add_incident(json_data: str) -> bool:
     """
-    Add an incident to the index from JSON string.
+    Add an incident directly to Pinecone index from JSON string.
     
     Args:
         json_data: JSON string containing incident data
@@ -89,8 +88,8 @@ def add_incident(json_data: str) -> bool:
         # Validate the record (this will auto-generate _id if missing)
         validated = validate_record(incident)
         
-        # Add to records list
-        records.append(validated)
+        # Upsert directly to Pinecone
+        dense_index.upsert_records("incidents", [validated])
         print(f"Successfully added incident {validated['_id']}")
         return True
     except json.JSONDecodeError as e:
@@ -103,21 +102,34 @@ def add_incident(json_data: str) -> bool:
         print(f"Error adding incident: {e}")
         return False
 
-# Load and add sample incidents from JSON file
 def load_and_add_incidents(json_file: str):
     """Load incidents from JSON file and add them to the database"""
     try:
         with open(json_file, 'r') as f:
             incidents = json.load(f)
         
+        if not incidents:
+            print(f"No incidents found in {json_file}")
+            return
+        
         print(f"\nLoading {len(incidents)} incidents from {json_file}...")
         
+        # Validate all records first
+        validated_records = []
         for incident in incidents:
-            # Convert dict to JSON string and add via add_incident
-            incident_json = json.dumps(incident)
-            add_incident(incident_json)
+            try:
+                validated = validate_record(incident)
+                validated_records.append(validated)
+            except ValueError as e:
+                print(f"Validation error: {e}")
         
-        print(f"Successfully loaded all incidents from {json_file}\n")
+        # Only upsert if we have valid records
+        if validated_records:
+            dense_index.upsert_records("incidents", validated_records)
+            print(f"Successfully loaded {len(validated_records)} incidents to Pinecone\n")
+        else:
+            print("No valid records to load")
+            
     except FileNotFoundError:
         print(f"Error: File {json_file} not found")
     except json.JSONDecodeError as e:
@@ -236,58 +248,50 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
         print(f"Error finding similar incidents: {e}")
         return []
 
-# Load sample incidents
-load_and_add_incidents("sample_incidents.json")
 
-print(len(records))
+# Only run this code when executing the file directly
+if __name__ == "__main__":
+    # Load sample incidents
+    load_and_add_incidents("sample_incidents.json")
 
-validated_records = []
-for record in records:
-    try:
-        validated_records.append(validate_record(record))
-    except ValueError as e:
-        print(f"Validation error for record {record.get('_id')}: {e}")
+    time.sleep(10)
 
-dense_index.upsert_records("incidents", validated_records)
+    stats = dense_index.describe_index_stats()
+    print(stats)
 
-time.sleep(10)
+    query = "pickpocketing in transit"
+    results = dense_index.search(
+        namespace="incidents",
+        query={
+            "top_k": 10,
+            "inputs": {
+                'text': query
+            }
+        },
+        rerank={
+            "model": "bge-reranker-v2-m3",
+            "top_n": 10,
+            "rank_fields": ["chunk_text"]
+        } 
+    )
 
-stats = dense_index.describe_index_stats()
-print(stats)
+    # Print the results
+    for hit in results['result']['hits']:
+        print(f"id: {hit['_id']:<5} | score: {round(hit['_score'], 2):<5} | incidentType: {hit['fields']['incidentType']:<15} | text: {hit['fields']['chunk_text']:<50}")
 
-query = "pickpocketing in transit"
-results = dense_index.search(
-    namespace="incidents",
-    query={
-        "top_k": 10,
-        "inputs": {
-            'text': query
-        }
-    },
-    rerank={
-        "model": "bge-reranker-v2-m3",
-        "top_n": 10,
-        "rank_fields": ["chunk_text"]
-    } 
-)
+    print("search complete.")
 
-# Print the results
-for hit in results['result']['hits']:
-    print(f"id: {hit['_id']:<5} | score: {round(hit['_score'], 2):<5} | incidentType: {hit['fields']['incidentType']:<15} | text: {hit['fields']['chunk_text']:<50}")
+    # test find_similar_incidents
+    test_incident = {
+        "chunk_text": "Fire in warehouse",
+        "incidentType": "Fire",
+        "postal_code": "10004",
+        "severity_level": "3",
+        "date": "2026-01-10",
+        "time": "20:15"
+    }
 
-print("search complete.")
-
-# test find_similar_incidents
-test_incident = {
-    "chunk_text": "Fire in warehouse",
-    "incidentType": "Fire",
-    "postal_code": "10004",
-    "severity_level": "3",
-    "date": "2026-01-10",
-    "time": "20:15"
-}
-
-similar = find_similar_incidents(json.dumps(test_incident), similarity_threshold=0.8, top_k=5)
-print("\nSimilar incidents found:")
-for incident in similar:
-    print(incident)
+    similar = find_similar_incidents(json.dumps(test_incident), similarity_threshold=0.8, top_k=5)
+    print("\nSimilar incidents found:")
+    for incident in similar:
+        print(incident)
