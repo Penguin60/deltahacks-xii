@@ -4,9 +4,8 @@ import time
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Note: The 'validate_record' and 'find_similar_incidents' imports are removed
-# as the data schema has changed. These functions in 'vector_store.py'
-# will need to be updated to work with the new JSON specification.
+# NOTE: this script is run once to seed dummy data to demo the VDB and filtering logic to prevent 
+# redudant entries from calls. 
 from backend.vector_store import dense_index
 
 def load_and_add_incidents(json_file: str):
@@ -53,8 +52,9 @@ if __name__ == "__main__":
 
     # Load environment variables from 'backend/.env'
     env_path = Path("backend/.env")
+    print(f"Checking for env file at {env_path.resolve()}")
     if env_path.exists():
-        print(f"Loading environment variables from {env_path.resolve()}")
+        print(f"Found env file, loading variables from {env_path.resolve()}")
         load_dotenv(dotenv_path=env_path)
     else:
         print("Warning: 'backend/.env' file not found. Pinecone credentials may be missing.")

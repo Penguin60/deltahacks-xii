@@ -4,17 +4,29 @@ import json
 import uuid
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from dotenv import load_dotenv
 from pinecone import Pinecone
 from typing import TypedDict, Literal
 
-load_dotenv()
+env_path = Path(__file__).parent / ".env"
+print(f"Looking for env file at {env_path.resolve()}")
+if env_path.exists():
+    print("Env file found. Loading from specific path.")
+    load_dotenv(dotenv_path=env_path)
+else:
+    print("Env file not found; falling back to existing environment.")
+    load_dotenv()
 
 pinecone_key = os.getenv("PINECONE_API_KEY")
+if pinecone_key:
+    print(f"PINECONE_API_KEY loaded: {pinecone_key}")
+else:
+    print("PINECONE_API_KEY is not set after loading env.")
 
 pc = Pinecone(pinecone_key)
 
-index_name = "dispatch"
+index_name = "dispatch-triage"
 if not pc.has_index(index_name):
     print(f"Creating new Pinecone index '{index_name}'...")
     pc.create_index_for_model(
