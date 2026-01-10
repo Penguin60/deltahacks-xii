@@ -1,3 +1,4 @@
+import TranscriptionLine from "@/components/TranscriptionLine";
 import Image from "next/image";
 
 export default function Home() {
