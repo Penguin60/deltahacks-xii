@@ -198,9 +198,8 @@ async def incoming_call(CallSid: str = Form(None)):
     # base = str(request.base_url).rstrip("/")
     # action_url = f"{base}/recording-finished?CallSid={CallSid}"
     response = VoiceResponse()
-    response.say("911, please describe your emergency. Press the pound button when you are finished.")
-    response.record(finish_on_key="*", action="/recording-finished", method="POST")
-    response.say("Thank you. Please stay on the line for further instructions.")
+    response.say("911, please describe your emergency. Press the star key when you are finished.")
+    response.record(finish_on_key="*", action=f"/recording-finished?CallSid={CallSid}", method="POST")
     return Response(content=str(response), media_type="application/xml")
 
 @app.post("/recording-finished")
@@ -214,7 +213,10 @@ async def upload_recording(request: Request):
     print(f"Recording SID: {recording_sid}")
     print(f"Call SID: {call_sid}")
     print(f"Call started at: {call_start_time}")
-    return Response("<Response></Response>", media_type="application/xml")
+    response = VoiceResponse()
+    response.say("Thank you for calling. A dispatcher will contact you shortly.")
+    response.hangup()
+    return Response(content=str(response), media_type="application/xml")
 
 
 if __name__ == "__main__":
