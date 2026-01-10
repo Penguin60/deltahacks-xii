@@ -39,7 +39,7 @@ async def agent1(state: AgentState):
     return {"messages": [msg]}
 
 # Middleware node: Custom function between agents (e.g., log/transform state)
-async def middleware(state: AgentState):
+async def middleware(state: AgentState): # NOTE vector embedding and checking happens here 
     # Example: Log last message content and add middleware stamp
     last_msg = state["messages"][-1].content
     print(f"Middleware: Processed '{last_msg[:50]}...'")  # Logging example
