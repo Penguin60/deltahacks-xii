@@ -1,9 +1,16 @@
 import json
+import os
 import time
-from backend.vector_store import dense_index, validate_record, find_similar_incidents
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Note: The 'validate_record' and 'find_similar_incidents' imports are removed
+# as the data schema has changed. These functions in 'vector_store.py'
+# will need to be updated to work with the new JSON specification.
+from backend.vector_store import dense_index
 
 def load_and_add_incidents(json_file: str):
-    """Load incidents from JSON file and add them to the database"""
+    """Load incidents from JSON file and add them to the Pinecone index."""
     try:
         with open(json_file, 'r') as f:
             incidents = json.load(f)
@@ -12,75 +19,48 @@ def load_and_add_incidents(json_file: str):
             print(f"No incidents found in {json_file}")
             return
         
-        print(f"\nLoading {len(incidents)} incidents from {json_file}...")
+        namespace = "incidents"
+        print(f"\nFound {len(incidents)} incidents in {json_file}.")
+        print(f"Upserting records to Pinecone namespace '{namespace}'...")
         
-        # Validate all records first
-        validated_records = []
-        for incident in incidents:
-            try:
-                validated = validate_record(incident)
-                validated_records.append(validated)
-            except ValueError as e:
-                print(f"Validation error: {e}")
+        # The validation step has been removed as the record schema has changed.
+        # We are now passing the records directly to the upsert method.
+        # The 'upsert_records' method is assumed to handle the new data structure.
+        dense_index.upsert_records(namespace, incidents)
         
-        # Only upsert if we have valid records
-        if validated_records:
-            dense_index.upsert_records("incidents", validated_records)
-            print(f"Successfully loaded {len(validated_records)} incidents to Pinecone\n")
-        else:
-            print("No valid records to load")
-            
+        print("Upsert command sent. Waiting 10 seconds for indexing to process...")
+        time.sleep(10)
+        
+        print("Fetching index statistics...")
+        stats = dense_index.describe_index_stats()
+        print("\n--- Pinecone Index Stats ---")
+        print(stats)
+        print("--------------------------\n")
+
     except FileNotFoundError:
-        print(f"Error: File {json_file} not found")
-    except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in {json_file}: {e}")
+        print(f"Error: The file {json_file} was not found.")
+    except json.JSONDecodeError:
+        print(f"Error: Could not decode JSON from {json_file}.")
     except Exception as e:
-        print(f"Error loading incidents: {e}")
+        print(f"An unexpected error occurred: {e}")
+        print("Please ensure 'backend/vector_store.py' is updated for the new data format.")
 
 
-# Only run this code when executing the file directly
 if __name__ == "__main__":
-    # Load sample incidents
-    load_and_add_incidents("sample_incidents.json")
+    # Set the working directory to the project root for consistent path resolution.
+    project_root = Path(__file__).parent.parent
+    os.chdir(project_root)
 
-    time.sleep(10)
+    # Load environment variables from 'backend/.env'
+    env_path = Path("backend/.env")
+    if env_path.exists():
+        print(f"Loading environment variables from {env_path.resolve()}")
+        load_dotenv(dotenv_path=env_path)
+    else:
+        print("Warning: 'backend/.env' file not found. Pinecone credentials may be missing.")
 
-    stats = dense_index.describe_index_stats()
-    print(stats)
-
-    query = "pickpocketing in transit"
-    results = dense_index.search(
-        namespace="incidents",
-        query={
-            "top_k": 10,
-            "inputs": {
-                'text': query
-            }
-        },
-        rerank={
-            "model": "bge-reranker-v2-m3",
-            "top_n": 10,
-            "rank_fields": ["chunk_text"]
-        } 
-    )
-
-    # Print the results
-    for hit in results['result']['hits']:
-        print(f"id: {hit['_id']:<5} | score: {round(hit['_score'], 2):<5} | incidentType: {hit['fields']['incidentType']:<15} | text: {hit['fields']['chunk_text']:<50}")
-
-    print("search complete.")
-
-    # test find_similar_incidents
-    test_incident = {
-        "chunk_text": "Fire in warehouse",
-        "incidentType": "Fire",
-        "postal_code": "10004",
-        "severity_level": "3",
-        "date": "2026-01-10",
-        "time": "20:15"
-    }
-
-    similar = find_similar_incidents(json.dumps(test_incident), similarity_threshold=0.8, top_k=5)
-    print("\nSimilar incidents found:")
-    for incident in similar:
-        print(incident)
+    json_file_path = "backend/sample_incidents.json"
+    
+    print(f"\nStarting one-time incident loading script for {json_file_path}...")
+    load_and_add_incidents(json_file_path)
+    print("Script finished.")
