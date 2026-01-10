@@ -1,4 +1,5 @@
 import TranscriptionLine from "@/components/TranscriptionLine";
+import QueuedCall from "@/components/QueuedCall";
 import Image from "next/image";
 
 export default function Home() {
@@ -9,7 +10,7 @@ export default function Home() {
             </div>
             <div className="flex flex-row flex-1 w-full mt-3">
                 <div className="flex flex-col flex-1 bg-zinc-800 flex-[1.5]">
-                    
+                  
                 </div>
                 <div className="flex flex-col flex-1 flex-[4] mx-3">
                     <div className="flex flex-[5] bg-zinc-800 mb-3">
