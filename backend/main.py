@@ -189,7 +189,8 @@ async def invoke_workflow(req: InvokeRequest = Body(...)):
 
 @app.get("/queue")
 async def get_queue():
-    with open("dummy-queue.json") as f:
+    queue_file_path = Path(__file__).parent / "dummy-queue.json"
+    with open(queue_file_path) as f:
         data = json.load(f)
     
     queue_summary = []
@@ -198,7 +199,9 @@ async def get_queue():
             "id": incident.get("id"),
             "incidentType": incident.get("incidentType"),
             "location": incident.get("location"),
-            "time": incident.get("time")
+            "time": incident.get("time"),
+            "severity_level": int(incident.get("severity_level", 1)), # Add severity_level, default to 1 and ensure int
+            "callers": 1 # Default callers to 1
         })
     return queue_summary
 
