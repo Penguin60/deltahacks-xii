@@ -31,7 +31,7 @@ def transcribe_url(src: str):
             "content": [
                 {
                     "type": "text",
-                    "text": "Please transcribe this audio file."
+                    "text": "Please transcribe this audio file. Every second, attach a timestamp in the format [mm:ss] before the corresponding text."
                 },
                 {
                     "type": "input_audio",
