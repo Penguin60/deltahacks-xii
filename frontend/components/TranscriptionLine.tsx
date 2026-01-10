@@ -8,7 +8,7 @@ export default function TranscriptionLine({
   time: string;
 }) {
   return (
-    <div className="w-full flex justify-between items-center">
+    <div className="w-full flex justify-between items-center p-4">
       <div>
         <h1 className="text-white">{text}</h1>
         <h3 className="text-zinc-400 text-sm">{speaker}</h3>
