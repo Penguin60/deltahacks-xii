@@ -31,7 +31,7 @@ def transcribe_url(src: str):
             "content": [
                 {
                     "type": "text",
-                    "text": "Please transcribe this audio file."
+                    "text": "Please transcribe this audio file. Every second, attach a timestamp in the format [mm:ss] before the corresponding text."
                 },
                 {
                     "type": "input_audio",
@@ -49,41 +49,3 @@ def transcribe_url(src: str):
     response = requests.post(url, headers=headers, json=payload)
 
     print(response.json())
-
-load_dotenv()
-
-url = "https://openrouter.ai/api/v1/chat/completions"
-headers = {
-    "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-    "Content-Type": "application/json"
-}
-
-# Read and encode the audio file
-
-audio_path = "transcribe_test.wav"
-
-base64_audio = encode_audio_to_base64(audio_path)
-
-messages = [{
-        "role": "user",
-        "content": [
-            {
-                "type": "text",
-                "text": "Please transcribe this audio file."
-            },
-            {
-                "type": "input_audio",
-                "input_audio": {
-                    "data": base64_audio,
-                    "format": "wav"
-                }
-            }
-        ]
-}]
-payload = {
-    "model": "mistralai/voxtral-small-24b-2507",
-    "messages": messages
-}
-response = requests.post(url, headers=headers, json=payload)
-
-print(response.json())
