@@ -30,7 +30,7 @@ dense_index = pc.Index(index_name)
 # Define the schema
 IncidentType = Literal[
     "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", 
-    "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
+    "Theft", "Pick Pocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
 ]
 
 SeverityLevel = Literal["1", "2", "3"]
@@ -56,7 +56,7 @@ def validate_record(record: dict) -> DispatchRecord:
     # Validate incidentType
     valid_types = {
         "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", 
-        "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
+        "Theft", "Pick Pocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
     }
     if record["incidentType"] not in valid_types:
         raise ValueError(f"Invalid incidentType. Must be one of: {valid_types}")
@@ -124,6 +124,66 @@ def load_and_add_incidents(json_file: str):
     except Exception as e:
         print(f"Error loading incidents: {e}")
 
+def _norm_text(s: str) -> str:
+    return " ".join(s.lower().split()) if isinstance(s, str) else ""
+
+def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, top_k: int = 5) -> list:
+    """
+    Find similar or duplicate incidents in the database.
+
+    Flags:
+    - is_exact_duplicate: normalized `chunk_text` matches an existing record exactly
+    - score: semantic similarity score from Pinecone search
+    """
+    try:
+        incident = json.loads(json_data)
+        query_text = incident.get("chunk_text", "")
+        if not query_text:
+            return []
+
+        results = dense_index.search(
+            namespace="incidents",
+            query={
+                "top_k": top_k,
+                "inputs": {'text': query_text}
+            },
+            rerank={
+                "model": "bge-reranker-v2-m3",
+                "top_n": top_k,
+                "rank_fields": ["chunk_text"]
+            }
+        )
+
+        q_norm = _norm_text(query_text)
+        similar_incidents = []
+        for hit in results.get('result', {}).get('hits', []):
+            hit_text = hit['fields'].get('chunk_text', '')
+            h_norm = _norm_text(hit_text)
+            score = float(hit.get('_score', 0.0))
+
+            is_exact = (q_norm == h_norm)
+            # Include exact matches OR anything above the threshold
+            if is_exact or score >= similarity_threshold:
+                similar_incidents.append({
+                    "_id": hit['_id'],
+                    "score": round(score, 4),
+                    "is_exact_duplicate": is_exact,
+                    "chunk_text": hit_text,
+                    "incidentType": hit['fields'].get('incidentType', ''),
+                    "postal_code": hit['fields'].get('postal_code', ''),
+                    "date": hit['fields'].get('date', ''),
+                    "time": hit['fields'].get('time', '')
+                })
+
+        return similar_incidents
+
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error: {e}")
+        return []
+    except Exception as e:
+        print(f"Error finding similar incidents: {e}")
+        return []
+
 # Load sample incidents
 load_and_add_incidents("sample_incidents.json")
 
@@ -143,7 +203,7 @@ time.sleep(10)
 stats = dense_index.describe_index_stats()
 print(stats)
 
-query = "residential fire"
+query = "pickpocketing in transit"
 results = dense_index.search(
     namespace="incidents",
     query={
@@ -164,3 +224,18 @@ for hit in results['result']['hits']:
     print(f"id: {hit['_id']:<5} | score: {round(hit['_score'], 2):<5} | incidentType: {hit['fields']['incidentType']:<15} | text: {hit['fields']['chunk_text']:<50}")
 
 print("search complete.")
+
+# test find_similar_incidents
+test_incident = {
+    "chunk_text": "Crowd stampede",
+    "incidentType": "Crowd Stampede",
+    "postal_code": "10008",
+    "severity_level": "3",
+    "date": "2026-01-10",
+    "time": "20:15"
+}
+
+similar = find_similar_incidents(json.dumps(test_incident), similarity_threshold=0.8, top_k=5)
+print("\nSimilar incidents found:")
+for incident in similar:
+    print(incident)
