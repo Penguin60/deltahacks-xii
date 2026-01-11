@@ -68,6 +68,10 @@ const DEFAULT_CONFIG = {
   initialBusyHandleTime: "1",
 };
 
+function formatMinutes(value: string) {
+  return value === "random" ? "Random (1/3/5 min)" : `${value} min`;
+}
+
 export default function Home() {
   const router = useRouter();
 
@@ -101,6 +105,44 @@ export default function Home() {
               Configure Centre Settings
             </Button>
           </Link>
+        </div>
+
+        <div className="text-left bg-zinc-800/60 border border-zinc-700 rounded-lg p-4">
+          <h2 className="text-white font-semibold text-lg mb-2">
+            Default Config
+          </h2>
+          <dl className="text-sm space-y-2">
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-400">Dispatchers</dt>
+              <dd className="text-white font-medium">
+                {DEFAULT_CONFIG.dispatchers}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-400">Initial Incoming Calls (Queue)</dt>
+              <dd className="text-white font-medium">
+                {DEFAULT_CONFIG.incomingCalls}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-400">Queue Call Handle Time</dt>
+              <dd className="text-white font-medium">
+                {formatMinutes(DEFAULT_CONFIG.handleTime)}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-400">Initial Busy Dispatchers</dt>
+              <dd className="text-white font-medium">
+                {DEFAULT_CONFIG.initialBusyDispatchers}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-400">Initial Busy Handle Time</dt>
+              <dd className="text-white font-medium">
+                {formatMinutes(DEFAULT_CONFIG.initialBusyHandleTime)}
+              </dd>
+            </div>
+          </dl>
         </div>
 
         <p className="text-zinc-500 text-sm pt-8">

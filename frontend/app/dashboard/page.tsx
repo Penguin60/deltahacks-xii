@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const userRemovedIdsRef = useRef<Set<string>>(new Set());
   const userRemoveInFlightRef = useRef<Set<string>>(new Set());
 
-  // Session guard to prevent re-invoking on refresh
+  // Guard to prevent double initialization in React strict mode
   const initGuardRef = useRef(false);
 
   // Safe polling: use visibility state to pause when tab is hidden
@@ -84,11 +84,15 @@ export default function DashboardPage() {
       }
       setConfig(loadedConfig);
 
-      // Session guard: check if we've already initialized this session
-      const sessionKey = `simulation_init_${JSON.stringify(loadedConfig)}`;
-      const alreadyInitialized = sessionStorage.getItem(sessionKey);
+      // Always invoke on dashboard load.
+      // This matches the desired demo behavior: when you restart the backend and reload the UI,
+      // the init requests are sent again (no session-based skipping).
+      //
+      // Also clear the cached queue so the Queue component can show skeletons during init
+      // even if React Query has previous data.
+      queryClient.removeQueries({ queryKey: ["queue"], exact: true });
 
-      if (!alreadyInitialized && loadedConfig.incomingCalls > 0) {
+      if (loadedConfig.incomingCalls > 0) {
         console.log(
           `Sending ${loadedConfig.incomingCalls} initial calls to backend...`
         );
@@ -109,8 +113,6 @@ export default function DashboardPage() {
           console.log(
             `${loadedConfig.incomingCalls} initial calls sent to backend.`
           );
-          // Mark as initialized for this session
-          sessionStorage.setItem(sessionKey, "true");
           refetchQueue();
         } catch (e: unknown) {
           console.error("Initialization error:", e);
@@ -118,15 +120,13 @@ export default function DashboardPage() {
             e instanceof Error ? e.message : "An unknown error occurred";
           setError(errorMessage);
         }
-      } else if (alreadyInitialized) {
-        console.log("Session already initialized, skipping invoke calls.");
       }
 
       setIsInitializing(false);
     };
 
     loadConfigAndInitialize();
-  }, [refetchQueue]);
+  }, [refetchQueue, queryClient]);
 
   const handleSelectCall = useCallback((id: string) => {
     setSelectedCallId((prevId) => (prevId === id ? null : id));
@@ -207,8 +207,8 @@ export default function DashboardPage() {
           </h1>
           <div className="overflow-y-auto h-full">
             <Queue
-              data={visibleQueue}
-              isPending={queueIsPending}
+              data={isInitializing ? undefined : visibleQueue}
+              isPending={queueIsPending || isInitializing}
               error={queueError}
               onSelectCall={handleSelectCall}
               selectedCallId={selectedCallId}

@@ -24,7 +24,8 @@ frontend/components/generic/QueuedCallSkeleton.tsx - Loading skeleton
 frontend/components/DispatcherStatus.tsx - Shows dispatcher status with countdown timers
 frontend/components/CallDetails.tsx - Call details panel with resolve button
 frontend/components/Transcript.tsx - Transcript display component
-Hooks
+
+# Hooks
 frontend/hooks/useDispatchers.ts - Dispatcher simulation with:
 Initial busy dispatchers (client-only placeholders)
 Per-dispatcher pickup from queue
