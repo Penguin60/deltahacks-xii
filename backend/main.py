@@ -44,6 +44,19 @@ app = FastAPI()
 
 from fastapi.middleware.cors import CORSMiddleware
 
+
+TRIAGE_FULL_PAYLOADS_LIST_KEY = "triage_full_payloads"
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Reset full payload storage on dev server startup."""
+    # Clear full payload list for a clean slate (demo/dev behavior)
+    deleted = await redis_client.delete(TRIAGE_FULL_PAYLOADS_LIST_KEY)
+    print(
+        f"[startup] Cleared full payload list ({TRIAGE_FULL_PAYLOADS_LIST_KEY}), deleted={deleted}"
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -298,6 +311,12 @@ async def enqueue_node(state: AgentState):
     queue_size = await redis_client.zcard("triage_queue")
     print(f"[enqueue] Queue size: {queue_size}")
 
+    # Store full payload in Redis using a separate data structure (list) (before Pinecone, no TTL)
+    await redis_client.rpush(TRIAGE_FULL_PAYLOADS_LIST_KEY, pinecone_json)
+    print(
+        f"[enqueue] Appended full payload for {triage_incident.id} to {TRIAGE_FULL_PAYLOADS_LIST_KEY}"
+    )
+
     # Add to Pinecone for downstream analytics
     print(f"ACTION: enqueue_pinecone {pinecone_json}")
     pinecone_ok = add_incident(pinecone_json)
@@ -305,8 +324,6 @@ async def enqueue_node(state: AgentState):
         print(f"[enqueue] Pinecone: indexed incident {triage_incident.id}")
     else:
         print(f"[enqueue] Pinecone: failed to index incident {triage_incident.id}")
-    await redis_client.set(f"triage_full:{triage_incident.id}", pinecone_json)
-    print(f"[enqueue] Cached full Pinecone payload for {triage_incident.id}")
     
     return {}  # No state changes, just side effect
 
@@ -392,7 +409,22 @@ async def get_queue():
 
 @app.get("/agent/{incident_id}")
 async def get_agent(incident_id: str):
-    """Retrieve a single incident by ULID from Pinecone."""
+    """Retrieve a single incident by ULID. Checks Redis cache first, falls back to Pinecone."""
+    
+    # First, check Redis list cache for a matching ULID
+    cached_entries = await redis_client.lrange(TRIAGE_FULL_PAYLOADS_LIST_KEY, 0, -1)
+    for cached_payload in cached_entries:
+        try:
+            record = json.loads(cached_payload)
+        except json.JSONDecodeError:
+            continue
+        if record.get("id") == incident_id:
+            print(
+                f"[get_agent] Found incident {incident_id} in Redis list {TRIAGE_FULL_PAYLOADS_LIST_KEY}"
+            )
+            return {"result": record}
+    
+    # Fall back to Pinecone
     if not os.getenv("PINECONE_API_KEY"):
         raise HTTPException(status_code=500, detail="Pinecone API key is not configured.")
 
@@ -404,6 +436,7 @@ async def get_agent(incident_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="Incident not found.")
 
+    print(f"[get_agent] Found incident {incident_id} in Pinecone")
     return {"result": record}
 
 
@@ -429,26 +462,34 @@ async def remove_incident(incident_id: str):
     print(f"[remove] Removed {removed} queue entries for {incident_id}")
     print(f"ACTION: remove_result {{\"removed\": {removed}}}")
 
-    cache_key = f"triage_full:{incident_id}"
-    cached_payload = await redis_client.get(cache_key)
-    if not cached_payload:
-        print(f"[remove] No cached full payload found for {incident_id}")
+    matched_payload_raw = None
+    matched_full_record = None
+    cached_entries = await redis_client.lrange(TRIAGE_FULL_PAYLOADS_LIST_KEY, 0, -1)
+    for cached_payload in cached_entries:
+        try:
+            record = json.loads(cached_payload)
+        except json.JSONDecodeError:
+            continue
+        if record.get("id") == incident_id:
+            matched_payload_raw = cached_payload
+            matched_full_record = record
+            break
+
+    if not matched_full_record or not matched_payload_raw:
+        print(
+            f"[remove] No cached full payload found for {incident_id} in {TRIAGE_FULL_PAYLOADS_LIST_KEY}"
+        )
         print(f"ACTION: remove_status_update {{\"status\": \"missing cached payload\"}}")
         return {"removed": removed, "status_update": "missing cached payload"}
 
-    try:
-        full_record = json.loads(cached_payload)
-    except json.JSONDecodeError:
-        print(f"[remove] Cached payload was malformed for {incident_id}")
-        raise HTTPException(status_code=500, detail="Cached payload corrupted")
-
-    previous_status = full_record.get("status")
-    full_record["status"] = "completed"
-    print(f"ACTION: remove_status_update {json.dumps(full_record)}")
-    status_updated = add_incident(json.dumps(full_record))
+    previous_status = matched_full_record.get("status")
+    matched_full_record["status"] = "completed"
+    print(f"ACTION: remove_status_update {json.dumps(matched_full_record)}")
+    status_updated = add_incident(json.dumps(matched_full_record))
     if status_updated:
         print(f"[remove] Updated status from {previous_status} to completed for {incident_id}")
-        await redis_client.delete(cache_key)
+        # Remove the cached entry from the list (first occurrence)
+        await redis_client.lrem(TRIAGE_FULL_PAYLOADS_LIST_KEY, 1, matched_payload_raw)
     else:
         print(f"[remove] Failed to update Pinecone status for {incident_id}")
 

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Queue from "@/components/Queue";
 import DispatcherStatus from "@/components/DispatcherStatus";
-import CallDetails from "@/components/CallDetails";
+import Sidebar, { LogEntry } from "@/components/Sidebar";
 import { mockTranscripts, TranscriptIn } from "@/lib/mock-data";
 import { useDispatchers, SimulationConfig, CustomCall } from "@/hooks/useDispatchers";
 import { fetchQueue, invokeTranscript, removeFromQueue } from "@/lib/api";
@@ -27,6 +27,21 @@ export default function DashboardPage() {
   const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [isResolving, setIsResolving] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [dispatcherLogs, setDispatcherLogs] = useState<LogEntry[]>([]);
+  
+  // Counter for unique log IDs
+  const logIdCounter = useRef(0);
+  
+  // Callback to add log entries from useDispatchers
+  const handleLog = useCallback((message: string) => {
+    const newLog: LogEntry = {
+      id: `log-${logIdCounter.current++}`,
+      timestamp: new Date(),
+      message,
+    };
+    setDispatcherLogs((prev) => [...prev, newLog]);
+  }, []);
 
   // Track IDs that have already been removed by user (idempotency guard)
   const userRemovedIdsRef = useRef<Set<string>>(new Set());
@@ -54,8 +69,17 @@ export default function DashboardPage() {
     queue,
     config,
     selectedCallId,
-    refetchQueue
+    refetchQueue,
+    handleLog
   );
+  
+  // Handle action button clicks from sidebar
+  const handleActionClick = useCallback((action: string) => {
+    setActionMessage(`${action} completed!`);
+    handleLog(`[Action] ${action} triggered`);
+    // Clear the message after 3 seconds
+    setTimeout(() => setActionMessage(null), 3000);
+  }, [handleLog]);
 
   // Filter queue to exclude claimed IDs (so user can't select them)
   const visibleQueue = useMemo(() => {
@@ -236,10 +260,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Main Content: Queue (left) + Call Details (right) */}
+      {/* Main Content: Queue (left) + Center Panel + Right Sidebar */}
       <div className="flex flex-row flex-1 w-full gap-3 overflow-hidden min-h-0">
         {/* Queue Panel - Left */}
-        <div className="flex flex-col flex-[1.5] bg-zinc-800 p-4 rounded-lg overflow-hidden">
+        <div className="flex flex-col w-72 flex-shrink-0 bg-zinc-800 p-4 rounded-lg overflow-hidden">
           <h1 className="text-white font-bold text-xl mb-2 flex-shrink-0">
             Queue
           </h1>
@@ -254,12 +278,32 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Call Details Panel - Right */}
-        <div className="flex flex-col flex-[3] bg-zinc-800 rounded-lg overflow-hidden">
-          <CallDetails
+        {/* Center Panel - Action Messages */}
+        <div className="flex flex-col flex-1 bg-zinc-800 rounded-lg overflow-hidden">
+          <div className="flex items-center justify-center h-full">
+            {actionMessage ? (
+              <div className="text-center">
+                <div className="text-green-400 text-2xl font-bold mb-2">✓</div>
+                <p className="text-white text-xl">{actionMessage}</p>
+              </div>
+            ) : (
+              <p className="text-zinc-400 text-center">
+                {selectedCallId
+                  ? "Use the action buttons in the sidebar to take action on this call."
+                  : "Select a call from the queue to get started."}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="flex flex-col w-96 flex-shrink-0 overflow-hidden">
+          <Sidebar
             incidentId={selectedCallId}
             onResolve={handleResolveCall}
             isResolving={isResolving}
+            onActionClick={handleActionClick}
+            logs={dispatcherLogs}
           />
         </div>
       </div>

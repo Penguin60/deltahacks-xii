@@ -66,8 +66,14 @@ export function useDispatchers(
   queue: QueueItem[] | undefined,
   config: SimulationConfig,
   selectedCallId: string | null,
-  refetchQueue: () => void
+  refetchQueue: () => void,
+  onLog?: (message: string) => void
 ): UseDispatcherReturn {
+  // Helper to log both to console and to the onLog callback
+  const log = useCallback((message: string) => {
+    console.log(message);
+    onLog?.(message);
+  }, [onLog]);
   const [dispatchers, setDispatchers] = useState<Dispatcher[]>([]);
   const [claimedQueueIds, setClaimedQueueIds] = useState<Set<string>>(
     new Set()
@@ -169,9 +175,9 @@ export function useDispatchers(
           dispatcher.endTime &&
           Date.now() >= dispatcher.endTime
         ) {
-          console.log(
+          log(
             `[Dispatcher ${dispatcher.id}] finished ${
-              dispatcher.isCurrentCall ? `current call ${dispatcher.callId}` : `queue call ${dispatcher.callId}`
+              dispatcher.isCurrentCall ? `current call ...${dispatcher.callId?.slice(-8)}` : `queue call ...${dispatcher.callId?.slice(-8)}`
             }`
           );
 
@@ -188,8 +194,8 @@ export function useDispatchers(
 
               removeFromQueue(callIdToRemove)
                 .then(() => {
-                  console.log(
-                    `[Dispatcher ${dispatcher.id}] successfully removed call ${callIdToRemove} from backend`
+                  log(
+                    `[Dispatcher ${dispatcher.id}] removed call ...${callIdToRemove.slice(-8)} from backend`
                   );
                   removedIdsRef.current.add(callIdToRemove);
                   // Remove from claimed set
@@ -201,9 +207,8 @@ export function useDispatchers(
                   refetchQueue();
                 })
                 .catch((err) => {
-                  console.warn(
-                    `[Dispatcher ${dispatcher.id}] failed to remove call ${callIdToRemove}:`,
-                    err
+                  log(
+                    `[Dispatcher ${dispatcher.id}] failed to remove call ...${callIdToRemove.slice(-8)}: ${err.message || err}`
                   );
                 })
                 .finally(() => {
@@ -236,8 +241,8 @@ export function useDispatchers(
           if (dispatcher.status === "idle" && remainingPending.length > 0) {
             const nextCurrentCall = remainingPending.shift()!;
 
-            console.log(
-              `[Dispatcher ${dispatcher.id}] picking up queued current call ${nextCurrentCall.clientId}`
+            log(
+              `[Dispatcher ${dispatcher.id}] picking up queued current call ...${nextCurrentCall.clientId.slice(-8)}`
             );
 
             newDispatchers[i] = {
@@ -280,8 +285,8 @@ export function useDispatchers(
               // Claim this call immediately (client-side)
               newClaimedIds.add(availableCall.id);
 
-              console.log(
-                `[Dispatcher ${dispatcher.id}] claiming queue call ${availableCall.id}`
+              log(
+                `[Dispatcher ${dispatcher.id}] claiming queue call ...${availableCall.id.slice(-8)}`
               );
 
               newDispatchers[i] = {
@@ -303,7 +308,7 @@ export function useDispatchers(
 
       return newDispatchers;
     });
-  }, [config.handleTime, config.initialBusyHandleTime, selectedCallId, claimedQueueIds, refetchQueue]);
+  }, [config.handleTime, config.initialBusyHandleTime, selectedCallId, claimedQueueIds, refetchQueue, log]);
 
   useEffect(() => {
     const interval = setInterval(processDispatchers, 1000); // Check every second
