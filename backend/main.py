@@ -53,6 +53,7 @@ app.add_middleware(
 class AgentState(TypedDict, total=False):
     """State for the incident triage pipeline"""
     transcript: NotRequired[TranscriptIn]
+    timestamped_transcript: NotRequired[Any]
     call_incident: NotRequired[CallIncident]
     assessment_incident: NotRequired[AssessmentIncident]
     triage_incident: NotRequired[TriageIncident]
@@ -247,8 +248,15 @@ async def enqueue_node(state: AgentState):
     print(f"[enqueue] Queue size: {queue_size}")
 
     # Append the full triage incident JSON to Pinecone for downstream analytics
-    triage_json = triage_incident.model_dump_json()
-    pinecone_ok = add_incident(triage_json)
+    triage_full_payload = triage_incident.model_dump()
+    timestamped = state.get("timestamped_transcript")
+    if timestamped is not None:
+        triage_full_payload["transcript"] = timestamped
+        print(f"[enqueue] Appending timestamped transcript with {len(timestamped) if isinstance(timestamped, list) else 'unknown count'} segments")
+    else:
+        print("[enqueue] No timestamped transcript to append to Pinecone payload")
+    pinecone_json = json.dumps(triage_full_payload)
+    pinecone_ok = add_incident(pinecone_json)
     if pinecone_ok:
         print(f"[enqueue] Pinecone: indexed incident {triage_incident.id}")
     else:
@@ -281,7 +289,10 @@ async def invoke_workflow(transcript, timestamped_transcript):
     Output: TriageIncident JSON (the final incident that was enqueued)
     """
     try:
-        result = await graph.ainvoke({"transcript": transcript})
+        result = await graph.ainvoke({
+            "transcript": transcript,
+            "timestamped_transcript": timestamped_transcript,
+        })
         
         # Return the final triage incident
         triage_incident = result.get("triage_incident")
