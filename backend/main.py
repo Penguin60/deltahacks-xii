@@ -35,7 +35,7 @@ model = ChatGoogleGenerativeAI(
 import json
 import time
 from backend.redis_client import redis_client
-from backend.vector_store import find_similar_incidents
+from backend.vector_store import find_similar_incidents, add_incident
 
 
 app = FastAPI()
@@ -220,12 +220,24 @@ async def enqueue_node(state: AgentState):
     triage_incident = state["triage_incident"]
     
     # Calculate priority score: current time - (severity * 30 minutes)
-    # Higher severity gets lower score (higher priority)
+    # Higher severity gets a lower score (higher priority)
     severity_int = int(triage_incident.severity_level)
     score = time.time() - (severity_int * 1800)
+
+    def _enum_value(value: Any):
+        return value.value if hasattr(value, "value") else value
     
-    # Store the exact triage JSON
-    item_json = triage_incident.model_dump_json()
+    # Store only the minimal queue payload
+    queue_entry = {
+        "id": triage_incident.id,
+        "incidentType": _enum_value(triage_incident.incidentType),
+        "location": triage_incident.location,
+        "time": triage_incident.time,
+        "severity_level": triage_incident.severity_level,
+        "suggested_actions": _enum_value(triage_incident.suggested_actions),
+    }
+    item_json = json.dumps(queue_entry)
+    print(f"[enqueue] Queue entry payload: {item_json}")
     
     print(f"[enqueue] Adding to queue - ID: {triage_incident.id}, Severity: {severity_int}, Score: {score}")
     await redis_client.zadd("triage_queue", {item_json: score})
@@ -233,6 +245,14 @@ async def enqueue_node(state: AgentState):
     # Log queue state
     queue_size = await redis_client.zcard("triage_queue")
     print(f"[enqueue] Queue size: {queue_size}")
+
+    # Append the full triage incident JSON to Pinecone for downstream analytics
+    triage_json = triage_incident.model_dump_json()
+    pinecone_ok = add_incident(triage_json)
+    if pinecone_ok:
+        print(f"[enqueue] Pinecone: indexed incident {triage_incident.id}")
+    else:
+        print(f"[enqueue] Pinecone: failed to index incident {triage_incident.id}")
     
     return {}  # No state changes, just side effect
 
@@ -278,20 +298,15 @@ async def invoke_workflow(transcript, timestamped_transcript):
 
 @app.get("/queue")
 async def get_queue():
-    queue_file_path = Path(__file__).parent / "dummy-queue.json"
-    with open(queue_file_path) as f:
-        data = json.load(f)
-    
     queue_summary = []
-    for incident in data:
-        queue_summary.append({
-            "id": incident.get("id"),
-            "incidentType": incident.get("incidentType"),
-            "location": incident.get("location"),
-            "time": incident.get("time"),
-            "severity_level": int(incident.get("severity_level", 1)), # Add severity_level, default to 1 and ensure int
-            "callers": 1 # Default callers to 1
-        })
+    raw_entries = await redis_client.zrange("triage_queue", 0, -1)
+    for raw_entry in raw_entries:
+        try:
+            entry = json.loads(raw_entry)
+            queue_summary.append(entry)
+        except json.JSONDecodeError:
+            print("[queue] Failed to decode queue entry:", raw_entry)
+    print(f"[queue] Returning {len(queue_summary)} entries")
     return queue_summary
 
 

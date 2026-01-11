@@ -23,6 +23,7 @@ function QueueContent() {
 	if (isPending) return <div>Loading...</div>;
 
 	if (error) return <div>An error has occurred: {error.message}</div>;
+	console.log("[Queue] fetched queue data", data);
 
 	return (
 		<div>
@@ -32,7 +33,8 @@ function QueueContent() {
 					type={call.incidentType}
 					location={call.location}
 					time={call.time}
-					severity={call.severity_level}
+					severity={Number(call.severity_level) || 1}
+					suggestedAction={call.suggested_actions}
 					callers={1}
 				/>
 			))}
