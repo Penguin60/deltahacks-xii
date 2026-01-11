@@ -3,8 +3,7 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchIncidentDetails } from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import Transcript from "./Transcript";
+import { CheckCircle } from "lucide-react";
 import { getIdSuffix } from "@/lib/ulid";
 
 interface CallDetailsProps {
@@ -32,7 +31,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({
 
   if (!incidentId) {
     return (
-      <div className="p-4 bg-zinc-800 rounded-lg h-full flex items-center justify-center text-zinc-400 w-full">
+      <div className="flex flex-col items-center justify-center w-full h-full py-12 text-zinc-400 bg-zinc-800 rounded-lg">
         Select a call from the queue to view details.
       </div>
     );
@@ -40,7 +39,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({
 
   if (isPending) {
     return (
-      <div className="p-4 bg-zinc-800 rounded-lg h-full flex items-center justify-center text-white w-full">
+      <div className="flex flex-col items-center justify-center w-full h-full py-12 text-white bg-zinc-800 rounded-lg">
         Loading call details...
       </div>
     );
@@ -48,7 +47,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({
 
   if (error) {
     return (
-      <div className="p-4 bg-zinc-800 rounded-lg h-full text-red-400 w-full">
+      <div className="flex flex-col items-center justify-center w-full h-full py-12 text-red-400 bg-zinc-800 rounded-lg">
         Error: {error.message}
       </div>
     );
@@ -56,57 +55,58 @@ const CallDetails: React.FC<CallDetailsProps> = ({
 
   if (!data) {
     return (
-      <div className="p-4 bg-zinc-800 rounded-lg h-full flex items-center justify-center text-zinc-400 w-full">
+      <div className="flex flex-col items-center justify-center w-full h-full py-12 text-zinc-400 bg-zinc-800 rounded-lg">
         Incident not found.
       </div>
     );
   }
 
   return (
-    <div className="p-4 bg-zinc-800 rounded-lg h-full overflow-y-auto w-full">
-      <h2 className="text-white font-bold text-xl mb-3">
-        Call Details: ...{getIdSuffix(data.id, 8)}
-      </h2>
-      <div className="text-zinc-300 text-sm space-y-1 mb-4">
-        <p>
-          <strong>Type:</strong> {data.incidentType}
-        </p>
-        <p>
-          <strong>Location:</strong> {data.location}
-        </p>
-        <p>
-          <strong>Date:</strong> {data.date}
-        </p>
-        <p>
-          <strong>Time:</strong> {data.time}
-        </p>
-        <p>
-          <strong>Duration:</strong> {data.duration}
-        </p>
-        <p>
-          <strong>Severity:</strong> {data.severity_level}
-        </p>
-        <p>
-          <strong>Description:</strong> {data.desc}
-        </p>
-        <p>
-          <strong>Suggested Action:</strong> {data.suggested_actions}
-        </p>
-        <p>
-          <strong>Status:</strong> {data.status}
-        </p>
+    <div className="flex flex-col items-center justify-start w-full h-full py-12 text-white bg-zinc-800 rounded-lg overflow-y-auto">
+      <div className="text-5xl font-extrabold tracking-tight">
+        ...{getIdSuffix(data.id, 8)}
       </div>
-      <Button
+      <div className="mt-1 text-lg font-semibold text-zinc-300">
+        {data.location}
+      </div>
+
+      <div className="mt-3 flex gap-2 flex-wrap justify-center">
+        <span className="px-3 py-1 rounded-full bg-zinc-700 text-sm text-zinc-200">
+          {data.incidentType}
+        </span>
+        <span className="px-3 py-1 rounded-full bg-zinc-700 text-sm text-zinc-200">
+          {data.date}
+        </span>
+        <span className="px-3 py-1 rounded-full bg-zinc-700 text-sm text-zinc-200">
+          {data.time}
+        </span>
+        <span className="px-3 py-1 rounded-full bg-zinc-700 text-sm text-zinc-200">
+          {data.duration}
+        </span>
+        <span className="px-3 py-1 rounded-full bg-zinc-700 text-sm text-zinc-200">
+          Severity: {data.severity_level}
+        </span>
+        <span className="px-3 py-1 rounded-full bg-zinc-700 text-sm text-zinc-200">
+          {data.status}
+        </span>
+      </div>
+
+      <p className="mt-5 max-w-3xl text-center text-base leading-relaxed text-zinc-100 px-4">
+        {data.desc}
+      </p>
+
+      <p className="mt-4 max-w-3xl text-center text-sm leading-relaxed text-zinc-300 px-4">
+        <strong>Suggested Action:</strong> {data.suggested_actions}
+      </p>
+
+      <button
         onClick={() => onResolve(data.id)}
-        className="mt-4 w-full bg-green-600 hover:bg-green-700"
         disabled={data.status === "completed" || isResolving}
+        className="mt-8 w-14 h-14 rounded-full bg-green-700 hover:bg-green-800 disabled:bg-zinc-600 disabled:cursor-not-allowed flex items-center justify-center shadow-lg transition-colors"
+        aria-label={isResolving ? "Resolving" : data.status === "completed" ? "Resolved" : "Resolve Call"}
       >
-        {isResolving
-          ? "Resolving..."
-          : data.status === "completed"
-          ? "Resolved"
-          : "Resolve Call"}
-      </Button>
+        <CheckCircle />
+      </button>
     </div>
   );
 };
