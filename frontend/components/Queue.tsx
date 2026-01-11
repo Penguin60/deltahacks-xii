@@ -1,13 +1,10 @@
 "use client";
 
-import {
-	QueryClient,
-	QueryClientProvider,
-	useQuery,
-} from "@tanstack/react-query";
 import QueuedCall from "./generic/QueuedCall";
-import { useMemo } from "react";
+import QueuedCallSkeleton from "./generic/QueuedCallSkeleton";
+import { QueueItem } from "@/lib/api";
 
+<<<<<<< HEAD
 const queryClient = new QueryClient();
 
 type QueueProps = {
@@ -53,12 +50,55 @@ function QueueContent({ onCallSelect }: QueueProps) {
 			))}
 		</div>
 	);
+=======
+interface QueueProps {
+  data: QueueItem[] | undefined;
+  isPending: boolean;
+  error: Error | null;
+  onSelectCall: (id: string) => void;
+  selectedCallId: string | null;
+>>>>>>> cd8db18 (checkpoint: initial client polling logic)
 }
 
-export default function Queue({ onCallSelect }: QueueProps) {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<QueueContent onCallSelect={onCallSelect} />
-		</QueryClientProvider>
-	);
+export default function Queue({
+  data,
+  isPending,
+  error,
+  onSelectCall,
+  selectedCallId,
+}: QueueProps) {
+  if (isPending && !data) {
+    return (
+      <div className="space-y-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <QueuedCallSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
+
+  if (error) return <div className="text-red-400">An error has occurred: {error.message}</div>;
+
+  if (!data || data.length === 0) {
+    return <div className="text-zinc-400">No calls in queue.</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {data.map((call) => (
+        <QueuedCall
+          key={call.id}
+          id={call.id}
+          type={call.incidentType}
+          location={call.location}
+          time={call.time}
+          severity={Number(call.severity_level) || 1}
+          suggestedAction={call.suggested_actions}
+          callers={1}
+          onSelectCall={onSelectCall}
+          isSelected={call.id === selectedCallId}
+        />
+      ))}
+    </div>
+  );
 }
