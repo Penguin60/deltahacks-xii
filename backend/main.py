@@ -39,17 +39,6 @@ import time
 from backend.redis_client import redis_client
 from backend.vector_store import find_similar_incidents, add_incident, get_incident_by_id
 
-DEBUG_LOG_PATH = "/Users/tlam/delta/.cursor/debug.log"
-
-def _agent_log(payload: dict) -> None:
-    """Append one NDJSON line for debug-mode evidence (no secrets)."""
-    try:
-        with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload) + "\n")
-    except Exception:
-        # Never let debug logging break app flow
-        pass
-
 
 app = FastAPI()
 
@@ -85,6 +74,8 @@ class AgentState(TypedDict, total=False):
     call_incident: NotRequired[CallIncident]
     assessment_incident: NotRequired[AssessmentIncident]
     triage_incident: NotRequired[TriageIncident]
+    # Similarity suppression metadata (set by enqueue_node)
+    duplicate_of: NotRequired[str]
 
 
 def _extract_json_block(content: str) -> str:
@@ -297,19 +288,6 @@ async def enqueue_node(state: AgentState):
         for dup in similar_incidents:
             print(f"  - ID: {dup['id']}, Score: {dup['score']}, Exact: {dup['is_exact_duplicate']}")
         print(f"[enqueue] Incident {triage_incident.id} NOT added (duplicate of {similar_incidents[0]['id']})")
-        _agent_log({
-            "sessionId": "debug-session",
-            "runId": "pre-fix-2",
-            "hypothesisId": "J",
-            "location": "backend/main.py:enqueue_node:duplicate",
-            "message": "Similarity hit; skipping enqueue to Redis",
-            "data": {
-                "newIncidentId": getattr(triage_incident, "id", None),
-                "duplicateOf": similar_incidents[0].get("id"),
-                "similarCount": len(similar_incidents),
-            },
-            "timestamp": int(time.time() * 1000),
-        })
         return {"duplicate_of": similar_incidents[0]["id"]}
 
     # Calculate priority score: current time - (severity * 30 minutes)
@@ -415,20 +393,6 @@ async def invoke_workflow(request: InvokeRequest):
             notice = "Similar incident detected; this call was not added to the live queue."
         else:
             notice = None
-
-        _agent_log({
-            "sessionId": "debug-session",
-            "runId": "pre-fix-2",
-            "hypothesisId": "K",
-            "location": "backend/main.py:invoke_workflow:response",
-            "message": "Invoke completed",
-            "data": {
-                "incidentId": getattr(triage_incident, "id", None),
-                "enqueued": enqueued,
-                "duplicateOf": duplicate_of,
-            },
-            "timestamp": int(time.time() * 1000),
-        })
 
         # NOTE: clients can use `enqueued=false` to show a toast/banner for this specific call
         response_payload = {

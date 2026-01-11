@@ -162,15 +162,7 @@ export function useDispatchers(
   const processDispatchers = useCallback(() => {
     const currentQueue = queueRef.current;
 
-    // #region agent log (debug instrumentation)
-    fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'client/hooks/useDispatchers.ts:processDispatchers:entry',message:'processDispatchers tick',data:{queueLen:currentQueue?.length??null,claimedQueueIdsSize:claimedQueueIds.size,selectedCallIdSuffix:selectedCallId?selectedCallId.slice(-8):null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
-
     setDispatchers((prevDispatchers) => {
-      // #region agent log (debug instrumentation)
-      fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'client/hooks/useDispatchers.ts:setDispatchers:entry',message:'setDispatchers updater start',data:{prev:{total:prevDispatchers.length,idle:prevDispatchers.filter(d=>d.status==='idle').length,busy:prevDispatchers.filter(d=>d.status==='busy').length,currentBusy:prevDispatchers.filter(d=>d.status==='busy'&&d.isCurrentCall).length,queueBusy:prevDispatchers.filter(d=>d.status==='busy'&&!d.isCurrentCall).length},claimedQueueIdsSize:claimedQueueIds.size},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
-
       const newDispatchers = [...prevDispatchers];
       const newClaimedIds = new Set(claimedQueueIds);
 
@@ -238,10 +230,6 @@ export function useDispatchers(
 
       // Second pass: idle dispatchers pick from pending current calls first
       setPendingCurrentCalls((prevPending) => {
-        // #region agent log (debug instrumentation)
-        fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'client/hooks/useDispatchers.ts:setPendingCurrentCalls:entry',message:'pendingCurrentCalls updater start',data:{prevPendingLen:prevPending.length,dispatchersIdleAtStart:newDispatchers.filter(d=>d.status==='idle').length},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
-
         if (prevPending.length === 0) return prevPending;
 
         const remainingPending = [...prevPending];
@@ -272,10 +260,6 @@ export function useDispatchers(
           }
         }
 
-        // #region agent log (debug instrumentation)
-        fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'client/hooks/useDispatchers.ts:setPendingCurrentCalls:exit',message:'pendingCurrentCalls updater end',data:{assignedCount:assigned.length,assigned,remainingPendingLen:remainingPending.length,dispatchersAfter:{idle:newDispatchers.filter(d=>d.status==='idle').length,busy:newDispatchers.filter(d=>d.status==='busy').length,currentBusy:newDispatchers.filter(d=>d.status==='busy'&&d.isCurrentCall).length,queueBusy:newDispatchers.filter(d=>d.status==='busy'&&!d.isCurrentCall).length}},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion agent log
-
         return remainingPending;
       });
 
@@ -285,10 +269,6 @@ export function useDispatchers(
       // For now, we'll block queue pickup if any dispatcher is handling a current call
       // or if there might be pending ones (conservative approach)
       const hasCurrentCallsActive = newDispatchers.some((d) => d.isCurrentCall);
-
-      // #region agent log (debug instrumentation)
-      fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'client/hooks/useDispatchers.ts:beforeQueuePickup',message:'queue pickup gate check',data:{hasCurrentCallsActive,queueLen:currentQueue?.length??null,dispatchersIdle:newDispatchers.filter(d=>d.status==='idle').length,newClaimedIdsSize:newClaimedIds.size},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
 
       if (!hasCurrentCallsActive && currentQueue && currentQueue.length > 0) {
         for (let i = 0; i < newDispatchers.length; i++) {
@@ -309,10 +289,6 @@ export function useDispatchers(
             if (availableCall) {
               // Claim this call immediately (client-side)
               newClaimedIds.add(availableCall.id);
-
-              // #region agent log (debug instrumentation)
-              fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'client/hooks/useDispatchers.ts:claimQueueCall',message:'dispatcher claimed queue call',data:{dispatcherId:dispatcher.id,callSuffix:availableCall.id.slice(-8),newClaimedIdsSize:newClaimedIds.size},timestamp:Date.now()})}).catch(()=>{});
-              // #endregion agent log
 
               log(
                 `[Dispatcher ${dispatcher.id}] claiming queue call ...${availableCall.id.slice(-8)}`

@@ -55,9 +55,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // Auto-scroll logs to bottom on new entries
   useEffect(() => {
-    // #region agent log (debug instrumentation)
-    fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'G',location:'client/components/Sidebar.tsx:logsEffect',message:'Sidebar logs effect fired',data:{activeTab,logsLen:logs.length,incidentIdSuffix:incidentId?incidentId.slice(-8):null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     if (activeTab === "logs" && logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }

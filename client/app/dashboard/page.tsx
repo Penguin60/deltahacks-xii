@@ -107,12 +107,7 @@ export default function DashboardPage() {
       timestamp: new Date(),
       message,
     };
-    setDispatcherLogs((prev) => {
-      // #region agent log (debug instrumentation)
-      fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'E',location:'client/app/dashboard/page.tsx:handleLog',message:'handleLog received dispatcher message',data:{prevLogsLen:prev.length,nextLogsLen:prev.length+1,messagePrefix:message.slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion agent log
-      return [...prev, newLog];
-    });
+    setDispatcherLogs((prev) => [...prev, newLog]);
   }, []);
 
   // Track IDs that have already been removed by user (idempotency guard)
@@ -157,9 +152,6 @@ export default function DashboardPage() {
   const visibleQueue = useMemo(() => {
     if (!queue) return undefined;
     const filtered = queue.filter((item) => !claimedQueueIds.has(item.id));
-    // #region agent log (debug instrumentation)
-    fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'F',location:'client/app/dashboard/page.tsx:visibleQueue',message:'visibleQueue computed',data:{queueLen:queue.length,claimedQueueIdsSize:claimedQueueIds.size,visibleLen:filtered.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion agent log
     return filtered;
   }, [queue, claimedQueueIds]);
 
@@ -172,11 +164,12 @@ export default function DashboardPage() {
 
       setIsInitializing(true);
       let loadedConfig: SimulationConfig = DEFAULT_CONFIG;
+      let storedConfigRaw: string | null = null;
 
       try {
-        const storedConfig = localStorage.getItem("simulationConfig");
-        if (storedConfig) {
-          loadedConfig = { ...DEFAULT_CONFIG, ...JSON.parse(storedConfig) };
+        storedConfigRaw = localStorage.getItem("simulationConfig");
+        if (storedConfigRaw) {
+          loadedConfig = { ...DEFAULT_CONFIG, ...JSON.parse(storedConfigRaw) };
         }
       } catch (e) {
         console.error(
@@ -184,6 +177,7 @@ export default function DashboardPage() {
           e
         );
       }
+
       setConfig(loadedConfig);
 
       // Always invoke on dashboard load.

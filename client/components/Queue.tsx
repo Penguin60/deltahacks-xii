@@ -59,7 +59,7 @@ export default function Queue({
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-amber-200 text-sm font-semibold">
-                    Similarity hit (not added to queue)
+                    Identical report detected (not added to queue)
                   </div>
                   <div className="text-amber-100/80 text-xs mt-1 break-words">
                     {n.notice ?? "A similar incident was detected and suppressed."}
