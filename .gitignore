@@ -3,6 +3,8 @@
 
 # client: new frontend dependencies 
 
+.cursor/*
+
 # dependencies
 client/node_modules
 client/.pnp

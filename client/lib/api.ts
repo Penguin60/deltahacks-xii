@@ -40,6 +40,13 @@ export async function apiFetch<T>(
  */
 export type TimestampedTranscriptLine = { text: string; time: string };
 
+export type InvokeResponse = {
+  result: { id: string } & Record<string, unknown>;
+  enqueued?: boolean;
+  duplicate_of?: string | null;
+  notice?: string | null;
+};
+
 export async function invokeTranscript(
   transcript: {
   text: string;
@@ -48,8 +55,8 @@ export async function invokeTranscript(
   duration: string;
   },
   timestamped_transcript?: TimestampedTranscriptLine[]
-): Promise<unknown> {
-  return apiFetch("/invoke", {
+): Promise<InvokeResponse> {
+  return apiFetch<InvokeResponse>("/invoke", {
     method: "POST",
     body: JSON.stringify({ transcript, timestamped_transcript }),
   });
