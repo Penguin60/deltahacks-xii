@@ -33,7 +33,7 @@ function QueueContent() {
 					location={call.location}
 					time={call.time}
 					severity={call.severity_level}
-					callers={call.callers}
+					callers={1}
 				/>
 			))}
 		</div>
