@@ -35,7 +35,7 @@ model = ChatGoogleGenerativeAI(
 import json
 import time
 from backend.redis_client import redis_client
-from backend.vector_store import find_similar_incidents
+from backend.vector_store import find_similar_incidents, add_incident, get_incident_by_id
 
 
 app = FastAPI()
@@ -53,6 +53,7 @@ app.add_middleware(
 class AgentState(TypedDict, total=False):
     """State for the incident triage pipeline"""
     transcript: NotRequired[TranscriptIn]
+    timestamped_transcript: NotRequired[Any]
     call_incident: NotRequired[CallIncident]
     assessment_incident: NotRequired[AssessmentIncident]
     triage_incident: NotRequired[TriageIncident]
@@ -220,12 +221,25 @@ async def enqueue_node(state: AgentState):
     triage_incident = state["triage_incident"]
     
     # Calculate priority score: current time - (severity * 30 minutes)
-    # Higher severity gets lower score (higher priority)
+    # Higher severity gets a lower score (higher priority)
     severity_int = int(triage_incident.severity_level)
     score = time.time() - (severity_int * 1800)
+
+    def _enum_value(value: Any):
+        return value.value if hasattr(value, "value") else value
     
-    # Store the exact triage JSON
-    item_json = triage_incident.model_dump_json()
+    # Store only the minimal queue payload
+    queue_entry = {
+        "id": triage_incident.id,
+        "incidentType": _enum_value(triage_incident.incidentType),
+        "location": triage_incident.location,
+        "time": triage_incident.time,
+        "severity_level": triage_incident.severity_level,
+        "suggested_actions": _enum_value(triage_incident.suggested_actions),
+    }
+    item_json = json.dumps(queue_entry)
+    print(f"[enqueue] Queue entry payload: {item_json}")
+    print(f"ACTION: enqueue_queue {item_json}")
     
     print(f"[enqueue] Adding to queue - ID: {triage_incident.id}, Severity: {severity_int}, Score: {score}")
     await redis_client.zadd("triage_queue", {item_json: score})
@@ -233,6 +247,24 @@ async def enqueue_node(state: AgentState):
     # Log queue state
     queue_size = await redis_client.zcard("triage_queue")
     print(f"[enqueue] Queue size: {queue_size}")
+
+    # Append the full triage incident JSON to Pinecone for downstream analytics
+    triage_full_payload = triage_incident.model_dump()
+    timestamped = state.get("timestamped_transcript")
+    if timestamped is not None:
+        triage_full_payload["transcript"] = timestamped
+        print(f"[enqueue] Appending timestamped transcript with {len(timestamped) if isinstance(timestamped, list) else 'unknown count'} segments")
+    else:
+        print("[enqueue] No timestamped transcript to append to Pinecone payload")
+    pinecone_json = json.dumps(triage_full_payload)
+    print(f"ACTION: enqueue_pinecone {pinecone_json}")
+    pinecone_ok = add_incident(pinecone_json)
+    if pinecone_ok:
+        print(f"[enqueue] Pinecone: indexed incident {triage_incident.id}")
+    else:
+        print(f"[enqueue] Pinecone: failed to index incident {triage_incident.id}")
+    await redis_client.set(f"triage_full:{triage_incident.id}", pinecone_json)
+    print(f"[enqueue] Cached full Pinecone payload for {triage_incident.id}")
     
     return {}  # No state changes, just side effect
 
@@ -261,7 +293,10 @@ async def invoke_workflow(transcript, timestamped_transcript):
     Output: TriageIncident JSON (the final incident that was enqueued)
     """
     try:
-        result = await graph.ainvoke({"transcript": transcript})
+        result = await graph.ainvoke({
+            "transcript": transcript,
+            "timestamped_transcript": timestamped_transcript,
+        })
         
         # Return the final triage incident
         triage_incident = result.get("triage_incident")
@@ -278,21 +313,82 @@ async def invoke_workflow(transcript, timestamped_transcript):
 
 @app.get("/queue")
 async def get_queue():
-    queue_file_path = Path(__file__).parent / "dummy-queue.json"
-    with open(queue_file_path) as f:
-        data = json.load(f)
-    
     queue_summary = []
-    for incident in data:
-        queue_summary.append({
-            "id": incident.get("id"),
-            "incidentType": incident.get("incidentType"),
-            "location": incident.get("location"),
-            "time": incident.get("time"),
-            "severity_level": int(incident.get("severity_level", 1)), # Add severity_level, default to 1 and ensure int
-            "callers": 1 # Default callers to 1
-        })
+    raw_entries = await redis_client.zrange("triage_queue", 0, -1)
+    for raw_entry in raw_entries:
+        try:
+            entry = json.loads(raw_entry)
+            queue_summary.append(entry)
+        except json.JSONDecodeError:
+            print("[queue] Failed to decode queue entry:", raw_entry)
+    print(f"[queue] Returning {len(queue_summary)} entries")
+    print(f"ACTION: queue_return {json.dumps(queue_summary)}")
     return queue_summary
+
+
+@app.get("/agent/{incident_id}")
+async def get_agent(incident_id: str):
+    """Retrieve a single incident by ULID from Pinecone."""
+    if not os.getenv("PINECONE_API_KEY"):
+        raise HTTPException(status_code=500, detail="Pinecone API key is not configured.")
+
+    try:
+        record = get_incident_by_id(incident_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if record is None:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    return {"result": record}
+
+
+@app.delete("/remove/{incident_id}")
+async def remove_incident(incident_id: str):
+    raw_entries = await redis_client.zrange("triage_queue", 0, -1)
+    matched_entry = None
+    for entry in raw_entries:
+        try:
+            payload = json.loads(entry)
+        except json.JSONDecodeError:
+            continue
+        if payload.get("id") == incident_id:
+            matched_entry = entry
+            break
+
+    if not matched_entry:
+        print(f"[remove] No queue entry found for {incident_id}")
+        raise HTTPException(status_code=404, detail="Incident not found in queue")
+
+    print(f"ACTION: remove_match {matched_entry}")
+    removed = await redis_client.zrem("triage_queue", matched_entry)
+    print(f"[remove] Removed {removed} queue entries for {incident_id}")
+    print(f"ACTION: remove_result {{\"removed\": {removed}}}")
+
+    cache_key = f"triage_full:{incident_id}"
+    cached_payload = await redis_client.get(cache_key)
+    if not cached_payload:
+        print(f"[remove] No cached full payload found for {incident_id}")
+        print(f"ACTION: remove_status_update {{\"status\": \"missing cached payload\"}}")
+        return {"removed": removed, "status_update": "missing cached payload"}
+
+    try:
+        full_record = json.loads(cached_payload)
+    except json.JSONDecodeError:
+        print(f"[remove] Cached payload was malformed for {incident_id}")
+        raise HTTPException(status_code=500, detail="Cached payload corrupted")
+
+    previous_status = full_record.get("status")
+    full_record["status"] = "completed"
+    print(f"ACTION: remove_status_update {json.dumps(full_record)}")
+    status_updated = add_incident(json.dumps(full_record))
+    if status_updated:
+        print(f"[remove] Updated status from {previous_status} to completed for {incident_id}")
+        await redis_client.delete(cache_key)
+    else:
+        print(f"[remove] Failed to update Pinecone status for {incident_id}")
+
+    return {"removed": removed, "status_update": "completed" if status_updated else "failed"}
 
 
 call_times = {}
