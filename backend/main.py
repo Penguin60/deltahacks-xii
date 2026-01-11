@@ -226,6 +226,7 @@ call_times = {}
 
 @app.post("/call")
 async def incoming_call(CallSid: str = Form(None)):
+    """Webhook to receive calls."""
     response = VoiceResponse()
     call_times[CallSid] = datetime.utcnow().isoformat()
     response.say("911, please describe your emergency. Press the star key when you are finished.")
@@ -234,6 +235,7 @@ async def incoming_call(CallSid: str = Form(None)):
 
 @app.post("/recording-finished")
 async def upload_recording(request: Request):
+    """Transcribes the recording."""
     form = await request.form()
     recording_url = form.get("RecordingUrl")
     recording_sid = form.get("RecordingSid")
