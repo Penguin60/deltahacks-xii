@@ -271,6 +271,10 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
         input_date = incident.get("date", "")
         input_time = incident.get("time", "")
 
+        print(f"[find_similar] Searching for similar incidents...")
+        print(f"[find_similar] Query desc: {query_text[:100]}...")
+        print(f"[find_similar] Input metadata: type={input_type}, location={input_location}, date={input_date}, time={input_time}")
+
         results = dense_index.search(
             namespace="incidents",
             query={
@@ -285,10 +289,31 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
             }
         )
 
+        # DEBUG: Print top 5 raw results before filtering
+        all_hits = results.get('result', {}).get('hits', [])
+        print(f"[find_similar] DEBUG: Found {len(all_hits)} total results from Pinecone")
+        print(f"[find_similar] DEBUG: Top 5 results BEFORE filtering (threshold={similarity_threshold}):")
+        for i, hit in enumerate(all_hits[:5]):
+            hit_score = float(hit.get('_score', 0.0))
+            hit_desc = hit.get('fields', {}).get('desc', '')[:80]
+            hit_type = hit.get('fields', {}).get('incidentType', '')
+            hit_loc = hit.get('fields', {}).get('location', '')
+            hit_date = hit.get('fields', {}).get('date', '')
+            hit_time = hit.get('fields', {}).get('time', '')
+            print(f"  [{i+1}] Score: {hit_score:.4f} | Type: {hit_type} | Loc: {hit_loc} | Date: {hit_date} | Time: {hit_time}")
+            print(f"       Desc: {hit_desc}...")
+            # Show why it would/wouldn't match
+            type_match = "✓" if hit_type == input_type else "✗"
+            loc_match = "✓" if hit_loc == input_location else "✗"
+            date_match = "✓" if hit_date == input_date else "✗"
+            time_match = "✓" if _time_within_window(input_time, hit_time, time_window_minutes) else "✗"
+            score_match = "✓" if hit_score >= similarity_threshold else "✗"
+            print(f"       Filters: type={type_match} loc={loc_match} date={date_match} time={time_match} score>={similarity_threshold}={score_match}")
+
         q_norm = _norm_text(query_text)
         similar_incidents = []
         
-        for hit in results.get('result', {}).get('hits', []):
+        for hit in all_hits:
             # Extract fields from result using new names
             hit_text = hit['fields'].get('desc', '')
             hit_type = hit['fields'].get('incidentType', '')
