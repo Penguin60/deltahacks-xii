@@ -240,18 +240,43 @@ async def enqueue_node(state: AgentState):
     """
     Add the final triage incident to Redis ZSET for queue processing.
     Lower score = higher priority (more urgent).
+    Skips adding if a similar incident already exists.
     """
     triage_incident = state["triage_incident"]
     
     print(f"TRIAGE CHECKPOINT: {triage_incident.model_dump_json()}")
 
+    def _enum_value(value: Any):
+        return value.value if hasattr(value, "value") else value
+
+    # Build the full payload first for duplicate checking
+    triage_full_payload = triage_incident.model_dump()
+    # Convert enum values to strings for JSON serialization
+    triage_full_payload["incidentType"] = _enum_value(triage_full_payload.get("incidentType"))
+    triage_full_payload["suggested_actions"] = _enum_value(triage_full_payload.get("suggested_actions"))
+    
+    timestamped = state.get("timestamped_transcript")
+    if timestamped is not None:
+        triage_full_payload["transcript"] = timestamped
+        print(f"[enqueue] Appending timestamped transcript with {len(timestamped) if isinstance(timestamped, list) else 'unknown count'} segments")
+    else:
+        print("[enqueue] No timestamped transcript to append to Pinecone payload")
+
+    pinecone_json = json.dumps(triage_full_payload)
+
+    # Check for similar/duplicate incidents before adding
+    similar_incidents = find_similar_incidents(pinecone_json, similarity_threshold=0.85)
+    if similar_incidents:
+        print(f"[enqueue] Found {len(similar_incidents)} similar incident(s), skipping duplicate:")
+        for dup in similar_incidents:
+            print(f"  - ID: {dup['id']}, Score: {dup['score']}, Exact: {dup['is_exact_duplicate']}")
+        print(f"[enqueue] Incident {triage_incident.id} NOT added (duplicate of {similar_incidents[0]['id']})")
+        return {"duplicate_of": similar_incidents[0]["id"]}
+
     # Calculate priority score: current time - (severity * 30 minutes)
     # Higher severity gets a lower score (higher priority)
     severity_int = int(triage_incident.severity_level)
     score = time.time() - (severity_int * 1800)
-
-    def _enum_value(value: Any):
-        return value.value if hasattr(value, "value") else value
     
     # Store only the minimal queue payload
     queue_entry = {
@@ -273,15 +298,7 @@ async def enqueue_node(state: AgentState):
     queue_size = await redis_client.zcard("triage_queue")
     print(f"[enqueue] Queue size: {queue_size}")
 
-    # Append the full triage incident JSON to Pinecone for downstream analytics
-    triage_full_payload = triage_incident.model_dump()
-    timestamped = state.get("timestamped_transcript")
-    if timestamped is not None:
-        triage_full_payload["transcript"] = timestamped
-        print(f"[enqueue] Appending timestamped transcript with {len(timestamped) if isinstance(timestamped, list) else 'unknown count'} segments")
-    else:
-        print("[enqueue] No timestamped transcript to append to Pinecone payload")
-    pinecone_json = json.dumps(triage_full_payload)
+    # Add to Pinecone for downstream analytics
     print(f"ACTION: enqueue_pinecone {pinecone_json}")
     pinecone_ok = add_incident(pinecone_json)
     if pinecone_ok:
