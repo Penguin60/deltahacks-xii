@@ -54,7 +54,7 @@ def transcribe_url(src: str, call_start_time: str):
             ]
     }]
     payload = {
-        "model": "google/gemini-3-pro-preview",
+        "model": "google/gemini-3-flash-preview",
         "messages": messages
     }
     response = requests.post(url, headers=headers, json=payload)
