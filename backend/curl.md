@@ -65,3 +65,10 @@ curl http://localhost:8000/queue
 ```
 
 **Note:** The `/queue` endpoint currently returns from dummy-queue.json (not live Redis data)
+
+## GET /agent/{ulid} - Retrieve a single incident from Pinecone
+```bash
+curl http://localhost:8000/agent/01H8XGJWBWBAQ4J1VDB1M9X519
+```
+
+**Note:** The ULID above matches the first record in `sample_incidents.json`.

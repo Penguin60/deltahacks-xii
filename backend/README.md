@@ -34,3 +34,8 @@ redis-server
 ## Testing Redis 
 
 Run `redis-cli ZRANGE triage_queue 0 -1 WITHSCORES` in the terminal after querying to check the dump
+
+
+## Adding sample data 
+
+``

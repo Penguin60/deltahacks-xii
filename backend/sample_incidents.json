@@ -5,11 +5,22 @@
     "location": "M5V 2T6",
     "date": "01/10/2026",
     "time": "18:30",
+    "duration": "00:07",
     "message": "Uh, yeah, hello? There's a huge fire... looks like a warehouse downtown. It's getting big.",
     "desc": "Structure fire reported at downtown warehouse.",
     "suggested_actions": "dispatch firefighters",
     "status": "in progress",
-    "severity_level": "3"
+    "severity_level": "3",
+    "transcript": [
+      {
+        "text": "Hello, there's a huge fire",
+        "time": "0:02"
+      },
+      {
+        "text": "Looks like a warehouse downtown",
+        "time": "0:04"
+      }
+    ]
   },
   {
     "id": "01H8XJWBWDNA25VSPM39X2E892",
@@ -17,11 +28,22 @@
     "location": "H2Y 1C6",
     "date": "01/10/2026",
     "time": "18:45",
+    "duration": "00:19",
     "message": "Help! The convenience store on the corner of Sainte-Catherine and a guy has a gun, he's robbing the place!",
     "desc": "Armed robbery in progress at a convenience store.",
     "suggested_actions": "dispatch officer",
     "status": "in progress",
-    "severity_level": "3"
+    "severity_level": "3",
+    "transcript": [
+      {
+        "text": "Help! There's a robbery",
+        "time": "0:01"
+      },
+      {
+        "text": "He has a gun, he's robbing the place",
+        "time": "0:09"
+      }
+    ]
   },
   {
     "id": "01H8XJWBWGQZ7J6YDB1M9X520A",
@@ -29,11 +51,22 @@
     "location": "V6B 4Y8",
     "date": "01/10/2026",
     "time": "19:00",
+    "duration": "00:11",
     "message": "My car was just stolen. It's a blue Honda Civic, license plate... I don't remember. From the street parking on Granville.",
     "desc": "Blue Honda Civic reported stolen from street parking.",
     "suggested_actions": "dispatch officer",
     "status": "completed",
-    "severity_level": "2"
+    "severity_level": "2",
+    "transcript": [
+      {
+        "text": "My car was just stolen",
+        "time": "0:02"
+      },
+      {
+        "text": "It was parked on Granville",
+        "time": "0:07"
+      }
+    ]
   },
   {
     "id": "01H8XJWBWJABCDE1234567890B",
@@ -41,23 +74,45 @@
     "location": "T2P 2V6",
     "date": "01/10/2026",
     "time": "20:30",
+    "duration": "00:04",
     "message": "There's a party next door and it's so loud, the music is shaking my windows. It's been hours.",
     "desc": "Loud noise and disturbance complaint in a residential area.",
     "suggested_actions": "console",
     "status": "completed",
-    "severity_level": "1"
+    "severity_level": "1",
+    "transcript": [
+      {
+        "text": "There's a party next door",
+        "time": "0:01"
+      },
+      {
+        "text": "The music is shaking my windows",
+        "time": "0:03"
+      }
+    ]
   },
   {
     "id": "01H8XJWBWKZYXWV987654321C",
-    "incidentType": "Pick Pocket",
+    "incidentType": "PickPocket",
     "location": "K1P 1J1",
     "date": "01/10/2026",
     "time": "20:00",
+    "duration": "00:06",
     "message": "I think my wallet was just stolen. I was in the ByWard Market and someone bumped into me.",
     "desc": "Wallet reported stolen, suspecting pickpocket in a crowded market.",
     "suggested_actions": "ask for more details",
     "status": "in progress",
-    "severity_level": "1"
+    "severity_level": "1",
+    "transcript": [
+      {
+        "text": "I think my wallet was stolen",
+        "time": "0:02"
+      },
+      {
+        "text": "This happened at the ByWard Market",
+        "time": "0:04"
+      }
+    ]
   },
   {
     "id": "01H8XJWBWMD4E5F6G7H8J9K0L1",
@@ -65,10 +120,21 @@
     "location": "R3B 0N2",
     "date": "01/10/2026",
     "time": "22:15",
+    "duration": "00:09",
     "message": "Someone broke my back window and is inside my house, I can hear them downstairs.",
     "desc": "Active break-in at a residence, suspect currently inside.",
     "suggested_actions": "dispatch officer",
     "status": "in progress",
-    "severity_level": "2"
+    "severity_level": "2",
+    "transcript": [
+      {
+        "text": "Someone broke my back window",
+        "time": "0:02"
+      },
+      {
+        "text": "I can hear them downstairs",
+        "time": "0:05"
+      }
+    ]
   }
 ]

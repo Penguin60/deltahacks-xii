@@ -4,17 +4,22 @@ export default function QueuedCall({
   time,
   severity,
   callers,
+  suggestedAction,
 }: {
   type: string;
   location: string;
   time: string;
   severity: number;
   callers: number;
+  suggestedAction?: string;
 }) {
   return (
     <div className="w-full flex justify-between items-center py-4">
       <div>
         <h1 className="text-white text-2xl font-semibold mb-2 leading-none">{type}</h1>
+        {suggestedAction && (
+          <p className="text-zinc-400 text-sm">{suggestedAction}</p>
+        )}
         <div className="bg-zinc-400 w-fit px-2 rounded-full text-sm">
           <h3 className="text-white text-sm">{callers} Callers</h3>
         </div>
