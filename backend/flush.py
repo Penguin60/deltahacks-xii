@@ -5,5 +5,5 @@ def reset_demo_data():
     r.flushall()
     print("demo cleared")
 
-if __name__ == "main":
+if __name__ == "__main__":
     reset_demo_data()
