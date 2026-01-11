@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -427,7 +428,7 @@ async def upload_recording(request: Request, background: BackgroundTasks):
 
 def transcribe_enqueue(src: str, call_start_time: str):
     content = transcribe_url(src, call_start_time)
-    invoke_workflow({"transcript": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript"))
+    asyncio.run(invoke_workflow({"transcript": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript")))
 
 
 if __name__ == "__main__":
