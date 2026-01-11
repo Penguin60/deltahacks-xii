@@ -187,37 +187,23 @@ async def invoke_workflow(req: InvokeRequest = Body(...)):
 
     return {"result": result}
 
-"""
-Get the current snapshot of the triage queue as JSON to return to the frontend.
-"""
 @app.get("/queue")
-async def get_triage_queue():
-    """
-    FastAPI endpoint to return the current snapshot of the Redis ZSET triage queue.
-    """
-    # Fetch all items from the 'triage_queue' ZSET, along with their scores.
-    # The score represents the timestamp, used for ordering.
-    raw_queue_items = await redis_client.zrange("triage_queue", 0, -1, withscores=True)
-
-    # Process the raw queue items into a more readable format
-    processed_queue = []
-    for item_json, score in raw_queue_items:
-        try:
-            # item_json is a JSON string, score is a float timestamp
-            item_data = json.loads(item_json)
-            processed_queue.append({
-                "task": item_data,
-                "timestamp": score
-            })
-        except json.JSONDecodeError:
-            # Handle cases where an item in Redis might not be valid JSON
-            processed_queue.append({
-                "task": item_json, # return as raw string if not valid JSON
-                "timestamp": score,
-                "error": "Invalid JSON in queue item"
-            })
-    print(f"Queue snapshot: {processed_queue}")
-    return {"queue_snapshot": processed_queue}
+async def get_queue():
+    queue_file_path = Path(__file__).parent / "dummy-queue.json"
+    with open(queue_file_path) as f:
+        data = json.load(f)
+    
+    queue_summary = []
+    for incident in data:
+        queue_summary.append({
+            "id": incident.get("id"),
+            "incidentType": incident.get("incidentType"),
+            "location": incident.get("location"),
+            "time": incident.get("time"),
+            "severity_level": int(incident.get("severity_level", 1)), # Add severity_level, default to 1 and ensure int
+            "callers": 1 # Default callers to 1
+        })
+    return queue_summary
 
 
 

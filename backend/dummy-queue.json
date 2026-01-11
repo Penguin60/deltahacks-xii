@@ -1,0 +1,38 @@
+[
+  {
+    "id": "01H8X2J4K5N6P7R8T9V0Z1Y2X3",
+    "incidentType": "Car Theft",
+    "location": "M5V 2T6",
+    "date": "01/10/2026",
+    "time": "10:30",
+    "message": "My car was stolen from the parking lot.",
+    "desc": "A 2022 Black Honda Civic was reported stolen.",
+    "suggested_actions": "dispatch officer",
+    "status": "in progress",
+    "severity_level": "2"
+  },
+  {
+    "id": "01H8X2J4K5N6P7R8T9V0Z1Y2X4",
+    "incidentType": "Fire",
+    "location": "V6B 4Y8",
+    "date": "01/10/2026",
+    "time": "11:00",
+    "message": "There is a fire in the kitchen of my apartment.",
+    "desc": "Kitchen fire reported in a downtown apartment building.",
+    "suggested_actions": "dispatch firefighters",
+    "status": "in progress",
+    "severity_level": "3"
+  },
+  {
+    "id": "01H8X2J4K5N6P7R8T9V0Z1Y2X5",
+    "incidentType": "Public Nuisance",
+    "location": "H2Y 1B6",
+    "date": "01/10/2026",
+    "time": "11:15",
+    "message": "A group of teenagers are being very loud and disruptive in the park.",
+    "desc": "Loud teenagers causing a disturbance in a public park.",
+    "suggested_actions": "console",
+    "status": "completed",
+    "severity_level": "1"
+  }
+]
