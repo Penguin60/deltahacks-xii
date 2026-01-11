@@ -34,9 +34,6 @@ export default function QueuedCall({
         <h1 className="text-white text-2xl font-semibold mb-2 leading-none">
           {type}
         </h1>
-        {suggestedAction && (
-          <p className="text-zinc-300 text-sm">{suggestedAction}</p>
-        )}
         <div className="bg-zinc-500 w-fit px-2 rounded-full text-sm mt-1">
           <h3 className="text-white text-sm">{callers} Callers</h3>
         </div>

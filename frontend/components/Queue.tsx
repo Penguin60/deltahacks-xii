@@ -1,10 +1,11 @@
 "use client";
 
+import { QueryClient, useQuery } from "@tanstack/react-query";
 import QueuedCall from "./generic/QueuedCall";
 import QueuedCallSkeleton from "./generic/QueuedCallSkeleton";
 import { QueueItem } from "@/lib/api";
+import { useMemo } from "react";
 
-<<<<<<< HEAD
 const queryClient = new QueryClient();
 
 type QueueProps = {
@@ -50,14 +51,12 @@ function QueueContent({ onCallSelect }: QueueProps) {
 			))}
 		</div>
 	);
-=======
 interface QueueProps {
   data: QueueItem[] | undefined;
   isPending: boolean;
   error: Error | null;
   onSelectCall: (id: string) => void;
   selectedCallId: string | null;
->>>>>>> cd8db18 (checkpoint: initial client polling logic)
 }
 
 export default function Queue({

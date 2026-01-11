@@ -6,82 +6,89 @@ import Queue from "@/components/Queue";
 import DispatcherStatus from "@/components/DispatcherStatus";
 import Sidebar, { LogEntry } from "@/components/Sidebar";
 import { mockTranscripts, TranscriptIn } from "@/lib/mock-data";
-import { useDispatchers, SimulationConfig, CustomCall } from "@/hooks/useDispatchers";
 import {
-  fetchQueue,
-  invokeTranscript,
-  removeFromQueue,
-  type TimestampedTranscriptLine,
-  type InvokeResponse,
+	useDispatchers,
+	SimulationConfig,
+	CustomCall,
+} from "@/hooks/useDispatchers";
+import {
+	fetchQueue,
+	invokeTranscript,
+	removeFromQueue,
+	type TimestampedTranscriptLine,
+	type InvokeResponse,
 } from "@/lib/api";
 import Link from "next/link";
 
 const DEFAULT_CONFIG: SimulationConfig = {
-  dispatchers: 5,
-  incomingCalls: 10,
-  handleTime: "3",
-  initialBusyDispatchers: 0,
-  initialBusyHandleTime: "1",
-  customIncomingCalls: [],
-  customCurrentCalls: [],
+	dispatchers: 5,
+	incomingCalls: 10,
+	handleTime: "3",
+	initialBusyDispatchers: 0,
+	initialBusyHandleTime: "1",
+	customIncomingCalls: [],
+	customCurrentCalls: [],
 };
 
 function parseDurationToSeconds(duration: string): number | null {
-  // Expected formats in this repo: "MM:SS" (e.g. "03:52") or occasionally "HH:MM:SS"
-  const parts = duration.split(":").map((p) => Number(p));
-  if (parts.some((n) => Number.isNaN(n))) return null;
-  if (parts.length === 2) {
-    const [mm, ss] = parts;
-    return mm * 60 + ss;
-  }
-  if (parts.length === 3) {
-    const [hh, mm, ss] = parts;
-    return hh * 3600 + mm * 60 + ss;
-  }
-  return null;
+	// Expected formats in this repo: "MM:SS" (e.g. "03:52") or occasionally "HH:MM:SS"
+	const parts = duration.split(":").map((p) => Number(p));
+	if (parts.some((n) => Number.isNaN(n))) return null;
+	if (parts.length === 2) {
+		const [mm, ss] = parts;
+		return mm * 60 + ss;
+	}
+	if (parts.length === 3) {
+		const [hh, mm, ss] = parts;
+		return hh * 3600 + mm * 60 + ss;
+	}
+	return null;
 }
 
 function formatSecondsAsTimestamp(totalSeconds: number): string {
-  const seconds = Math.max(0, Math.floor(totalSeconds));
-  const mm = Math.floor(seconds / 60);
-  const ss = seconds % 60;
-  return `${mm}:${String(ss).padStart(2, "0")}`;
+	const seconds = Math.max(0, Math.floor(totalSeconds));
+	const mm = Math.floor(seconds / 60);
+	const ss = seconds % 60;
+	return `${mm}:${String(ss).padStart(2, "0")}`;
 }
 
 function generateTimestampedTranscriptForDefaultMock(
-  transcript: TranscriptIn
+	transcript: TranscriptIn
 ): TimestampedTranscriptLine[] {
-  // Split text into sentence-ish chunks and assign evenly-spaced timestamps.
-  const chunks =
-    transcript.text.match(/[^.!?]+[.!?]*/g)?.map((s) => s.trim()).filter(Boolean) ??
-    [];
+	// Split text into sentence-ish chunks and assign evenly-spaced timestamps.
+	const chunks =
+		transcript.text
+			.match(/[^.!?]+[.!?]*/g)
+			?.map((s) => s.trim())
+			.filter(Boolean) ?? [];
 
-  if (chunks.length === 0) {
-    return [{ text: transcript.text, time: "0:01" }];
-  }
+	if (chunks.length === 0) {
+		return [{ text: transcript.text, time: "0:01" }];
+	}
 
-  const totalSeconds = parseDurationToSeconds(transcript.duration);
-  const hasUsableDuration = typeof totalSeconds === "number" && totalSeconds >= 2;
+	const totalSeconds = parseDurationToSeconds(transcript.duration);
+	const hasUsableDuration =
+		typeof totalSeconds === "number" && totalSeconds >= 2;
 
-  let lastAssigned = 0;
-  return chunks.map((text, idx) => {
-    let seconds: number;
+	let lastAssigned = 0;
+	return chunks.map((text, idx) => {
+		let seconds: number;
 
-    if (hasUsableDuration) {
-      // Spread timestamps across the call duration, starting at ~1s.
-      const raw = Math.floor(((idx + 1) * totalSeconds!) / (chunks.length + 1));
-      seconds = Math.max(1, raw);
-    } else {
-      // Fallback: 5-second increments.
-      seconds = 1 + idx * 5;
-    }
+		if (hasUsableDuration) {
+			// Spread timestamps across the call duration, starting at ~1s.
+			const raw = Math.floor(((idx + 1) * totalSeconds!) / (chunks.length + 1));
+			seconds = Math.max(1, raw);
+		} else {
+			// Fallback: 5-second increments.
+			seconds = 1 + idx * 5;
+		}
 
-    // Ensure monotonic increasing times.
-    seconds = Math.max(seconds, lastAssigned + 1);
-    lastAssigned = seconds;
+		// Ensure monotonic increasing times.
+		seconds = Math.max(seconds, lastAssigned + 1);
+		lastAssigned = seconds;
 
-    return { text, time: formatSecondsAsTimestamp(seconds) };
-  });
+		return { text, time: formatSecondsAsTimestamp(seconds) };
+	});
 }
 
 export default function DashboardPage() {
