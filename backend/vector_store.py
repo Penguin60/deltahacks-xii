@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from pinecone import Pinecone
-from typing import TypedDict, Literal, List
+from typing import TypedDict, Literal, List, Optional
 
 env_path = Path(__file__).parent / ".env"
 print(f"Looking for env file at {env_path.resolve()}")
@@ -337,5 +337,75 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
     except Exception as e:
         print(f"Error finding similar incidents: {e}")
         return []
+
+
+def get_incident_by_id(incident_id: str) -> Optional[dict]:
+    """
+    Fetch a single incident from Pinecone by ULID.
+
+    Returns:
+        dict: Incident payload if found.
+        None: If no record matches the ULID.
+    """
+    if not isinstance(incident_id, str) or len(incident_id) != 26:
+        raise ValueError("incident_id must be a 26-character ULID string.")
+
+    try:
+        host = pc.describe_index(index_name).host
+        namespace = "incidents"
+        # Use GET /vectors/fetch with query params (correct Pinecone data-plane endpoint)
+        url = f"https://{host}/vectors/fetch"
+        headers = {
+            "Api-Key": os.getenv("PINECONE_API_KEY"),
+            "X-Pinecone-Api-Version": "2025-10",
+        }
+        params = {
+            "ids": [incident_id],
+            "namespace": namespace,
+        }
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        body = response.json()
+        
+        print(f"[get_incident_by_id] Pinecone response: {json.dumps(body)}")
+
+        # Response structure: { "vectors": { "<id>": { "id": "...", "values": [...], "metadata": {...} } } }
+        vectors = body.get("vectors", {})
+        record_obj = vectors.get(incident_id)
+
+        if not record_obj:
+            print(f"[get_incident_by_id] No record found for {incident_id}")
+            return None
+
+        # For /vectors/fetch, fields are stored in "metadata"
+        metadata = record_obj.get("metadata", {})
+        
+        if not metadata:
+            print(f"[get_incident_by_id] Record found but no metadata present for {incident_id}")
+            print(f"[get_incident_by_id] Record structure: {json.dumps(record_obj)}")
+            return None
+
+        # Transcript is stored as a JSON string; deserialize if needed.
+        transcript_raw = metadata.get("transcript")
+        if isinstance(transcript_raw, str):
+            try:
+                metadata["transcript"] = json.loads(transcript_raw)
+            except json.JSONDecodeError:
+                # Leave as-is if it cannot be parsed
+                pass
+
+        metadata["id"] = metadata.get("id") or metadata.get("_id") or incident_id
+        return metadata
+    except requests.exceptions.RequestException as e:
+        print(f"[get_incident_by_id] HTTP request error: {e}")
+        if hasattr(e, "response") and e.response is not None:
+            print(f"[get_incident_by_id] Response body: {e.response.text}")
+        return None
+    except Exception as e:
+        print(f"[get_incident_by_id] Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 

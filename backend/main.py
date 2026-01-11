@@ -35,7 +35,7 @@ model = ChatGoogleGenerativeAI(
 import json
 import time
 from backend.redis_client import redis_client
-from backend.vector_store import find_similar_incidents, add_incident
+from backend.vector_store import find_similar_incidents, add_incident, get_incident_by_id
 
 
 app = FastAPI()
@@ -324,6 +324,23 @@ async def get_queue():
     print(f"[queue] Returning {len(queue_summary)} entries")
     print(f"ACTION: queue_return {json.dumps(queue_summary)}")
     return queue_summary
+
+
+@app.get("/agent/{incident_id}")
+async def get_agent(incident_id: str):
+    """Retrieve a single incident by ULID from Pinecone."""
+    if not os.getenv("PINECONE_API_KEY"):
+        raise HTTPException(status_code=500, detail="Pinecone API key is not configured.")
+
+    try:
+        record = get_incident_by_id(incident_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if record is None:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+
+    return {"result": record}
 
 
 @app.delete("/remove/{incident_id}")
