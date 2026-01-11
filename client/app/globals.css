@@ -46,6 +46,16 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+.hide-scrollbar {
+  -ms-overflow-style: none;      
+  scrollbar-width: none;        
+}
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none;
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

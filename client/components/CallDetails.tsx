@@ -96,12 +96,6 @@ const CallDetails: React.FC<CallDetailsProps> = ({
           <strong>Status:</strong> {data.status}
         </p>
       </div>
-      {data.transcript && data.transcript.length > 0 && (
-        <div className="mt-4">
-          <h3 className="text-white font-semibold text-lg mb-2">Transcript</h3>
-          <Transcript transcript={data.transcript} />
-        </div>
-      )}
       <Button
         onClick={() => onResolve(data.id)}
         className="mt-4 w-full bg-green-600 hover:bg-green-700"

@@ -16,7 +16,7 @@ const DispatcherStatus: React.FC<DispatcherStatusProps> = ({ dispatchers }) => {
   }, []);
 
   return (
-    <div className="p-4 bg-zinc-800 rounded-lg h-full overflow-y-auto w-full">
+    <div className="px-4 py-3 bg-zinc-800 rounded-lg h-full overflow-y-auto w-full hide-scrollbar">
       <h2 className="text-white font-bold text-xl mb-4">Dispatcher Status</h2>
       <div className="space-y-3">
         {dispatchers.map((dispatcher) => {

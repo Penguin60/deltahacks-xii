@@ -48,7 +48,7 @@ export default function Queue({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 hide-scrollbar">
       {hasSuppressed && (
         <div className="space-y-2">
           {suppressedNotices!.map((n) => (

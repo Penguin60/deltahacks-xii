@@ -93,320 +93,338 @@ function generateTimestampedTranscriptForDefaultMock(
 }
 
 export default function DashboardPage() {
-  const queryClient = useQueryClient();
-  const [config, setConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [isResolving, setIsResolving] = useState(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [dispatcherLogs, setDispatcherLogs] = useState<LogEntry[]>([]);
-  const [suppressedNotices, setSuppressedNotices] = useState<
-    Array<{ id: string; duplicate_of?: string | null; notice?: string | null; createdAt: number }>
-  >([]);
-  
-  // Counter for unique log IDs
-  const logIdCounter = useRef(0);
-  
-  // Callback to add log entries from useDispatchers
-  const handleLog = useCallback((message: string) => {
-    const newLog: LogEntry = {
-      id: `log-${logIdCounter.current++}`,
-      timestamp: new Date(),
-      message,
-    };
-    setDispatcherLogs((prev) => [...prev, newLog]);
-  }, []);
+	const queryClient = useQueryClient();
+	const [config, setConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
+	const [error, setError] = useState<string | null>(null);
+	const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
+	const [isInitializing, setIsInitializing] = useState(true);
+	const [isResolving, setIsResolving] = useState(false);
+	const [actionMessage, setActionMessage] = useState<string | null>(null);
+	const [dispatcherLogs, setDispatcherLogs] = useState<LogEntry[]>([]);
+	const [suppressedNotices, setSuppressedNotices] = useState<
+		Array<{
+			id: string;
+			duplicate_of?: string | null;
+			notice?: string | null;
+			createdAt: number;
+		}>
+	>([]);
 
-  // Track IDs that have already been removed by user (idempotency guard)
-  const userRemovedIdsRef = useRef<Set<string>>(new Set());
-  const userRemoveInFlightRef = useRef<Set<string>>(new Set());
+	// Counter for unique log IDs
+	const logIdCounter = useRef(0);
 
-  // Guard to prevent double initialization in React strict mode
-  const initGuardRef = useRef(false);
+	// Callback to add log entries from useDispatchers
+	const handleLog = useCallback((message: string) => {
+		const newLog: LogEntry = {
+			id: `log-${logIdCounter.current++}`,
+			timestamp: new Date(),
+			message,
+		};
+		setDispatcherLogs((prev) => [...prev, newLog]);
+	}, []);
 
-  // Safe polling: use visibility state to pause when tab is hidden
-  const {
-    data: queue,
-    error: queueError,
-    isPending: queueIsPending,
-    refetch: refetchQueue,
-  } = useQuery({
-    queryKey: ["queue"],
-    queryFn: ({ signal }) => fetchQueue(signal),
-    refetchInterval: 1000,
-    staleTime: 0,
-    refetchIntervalInBackground: false, // Pause when tab hidden
-    placeholderData: (previousData) => previousData, // Keep last good data
-  });
+	// Track IDs that have already been removed by user (idempotency guard)
+	const userRemovedIdsRef = useRef<Set<string>>(new Set());
+	const userRemoveInFlightRef = useRef<Set<string>>(new Set());
 
-  const { dispatchers, claimedQueueIds, pendingCurrentCallsCount } = useDispatchers(
-    queue,
-    config,
-    selectedCallId,
-    refetchQueue,
-    handleLog
-  );
-  
-  // Handle action button clicks from sidebar
-  const handleActionClick = useCallback((action: string) => {
-    setActionMessage(`${action} completed!`);
-    handleLog(`[Action] ${action} triggered`);
-    // Clear the message after 3 seconds
-    setTimeout(() => setActionMessage(null), 3000);
-  }, [handleLog]);
+	// Guard to prevent double initialization in React strict mode
+	const initGuardRef = useRef(false);
 
-  // Filter queue to exclude claimed IDs (so user can't select them)
-  const visibleQueue = useMemo(() => {
-    if (!queue) return undefined;
-    const filtered = queue.filter((item) => !claimedQueueIds.has(item.id));
-    return filtered;
-  }, [queue, claimedQueueIds]);
+	// Safe polling: use visibility state to pause when tab is hidden
+	const {
+		data: queue,
+		error: queueError,
+		isPending: queueIsPending,
+		refetch: refetchQueue,
+	} = useQuery({
+		queryKey: ["queue"],
+		queryFn: ({ signal }) => fetchQueue(signal),
+		refetchInterval: 1000,
+		staleTime: 0,
+		refetchIntervalInBackground: false, // Pause when tab hidden
+		placeholderData: (previousData) => previousData, // Keep last good data
+	});
 
-  // Load config and initialize simulation on mount
-  useEffect(() => {
-    const loadConfigAndInitialize = async () => {
-      // Prevent double initialization in strict mode
-      if (initGuardRef.current) return;
-      initGuardRef.current = true;
+	const { dispatchers, claimedQueueIds, pendingCurrentCallsCount } =
+		useDispatchers(queue, config, selectedCallId, refetchQueue, handleLog);
 
-      setIsInitializing(true);
-      let loadedConfig: SimulationConfig = DEFAULT_CONFIG;
-      let storedConfigRaw: string | null = null;
+	// Handle action button clicks from sidebar
+	const handleActionClick = useCallback(
+		(action: string) => {
+			setActionMessage(`${action} completed!`);
+			handleLog(`[Action] ${action} triggered`);
+			// Clear the message after 3 seconds
+			setTimeout(() => setActionMessage(null), 3000);
+		},
+		[handleLog]
+	);
 
-      try {
-        storedConfigRaw = localStorage.getItem("simulationConfig");
-        if (storedConfigRaw) {
-          loadedConfig = { ...DEFAULT_CONFIG, ...JSON.parse(storedConfigRaw) };
-        }
-      } catch (e) {
-        console.error(
-          "Failed to parse config from localStorage, using defaults.",
-          e
-        );
-      }
+	// Filter queue to exclude claimed IDs (so user can't select them)
+	const visibleQueue = useMemo(() => {
+		if (!queue) return undefined;
+		const filtered = queue.filter((item) => !claimedQueueIds.has(item.id));
+		return filtered;
+	}, [queue, claimedQueueIds]);
 
-      setConfig(loadedConfig);
+	// Load config and initialize simulation on mount
+	useEffect(() => {
+		const loadConfigAndInitialize = async () => {
+			// Prevent double initialization in strict mode
+			if (initGuardRef.current) return;
+			initGuardRef.current = true;
 
-      // Always invoke on dashboard load.
-      // Clear the cached queue so the Queue component can show skeletons during init.
-      queryClient.removeQueries({ queryKey: ["queue"], exact: true });
+			setIsInitializing(true);
+			let loadedConfig: SimulationConfig = DEFAULT_CONFIG;
+			let storedConfigRaw: string | null = null;
 
-      // Determine which transcripts to invoke
-      let transcriptsToInvoke: TranscriptIn[] = [];
-      const customIncomingCalls = loadedConfig.customIncomingCalls ?? [];
-      const hasCustomIncomingCalls = customIncomingCalls.length > 0;
+			try {
+				storedConfigRaw = localStorage.getItem("simulationConfig");
+				if (storedConfigRaw) {
+					loadedConfig = { ...DEFAULT_CONFIG, ...JSON.parse(storedConfigRaw) };
+				}
+			} catch (e) {
+				console.error(
+					"Failed to parse config from localStorage, using defaults.",
+					e
+				);
+			}
 
-      if (hasCustomIncomingCalls) {
-        // Use custom incoming calls (override defaults)
-        console.log(
-          `Using ${customIncomingCalls.length} custom incoming calls.`
-        );
-        transcriptsToInvoke = customIncomingCalls.map(
-          (c: CustomCall) => c.transcript
-        );
-      } else if (loadedConfig.incomingCalls > 0) {
-        // Use default mock transcripts
-        console.log(
-          `Using ${loadedConfig.incomingCalls} default incoming calls from mock data.`
-        );
-        transcriptsToInvoke = Array.from({ length: loadedConfig.incomingCalls }, () => {
-          const randomIndex = Math.floor(Math.random() * mockTranscripts.length);
-          return mockTranscripts[randomIndex];
-        });
-      }
+			setConfig(loadedConfig);
 
-      if (transcriptsToInvoke.length > 0) {
-        console.log(
-          `Sending ${transcriptsToInvoke.length} initial calls to backend...`
-        );
+			// Always invoke on dashboard load.
+			// Clear the cached queue so the Queue component can show skeletons during init.
+			queryClient.removeQueries({ queryKey: ["queue"], exact: true });
 
-        const invokePromises = transcriptsToInvoke.map((transcript) => {
-          const timestamped_transcript: TimestampedTranscriptLine[] = hasCustomIncomingCalls
-            ? [{ text: transcript.text, time: "0:15" }]
-            : generateTimestampedTranscriptForDefaultMock(transcript);
+			// Determine which transcripts to invoke
+			let transcriptsToInvoke: TranscriptIn[] = [];
+			const customIncomingCalls = loadedConfig.customIncomingCalls ?? [];
+			const hasCustomIncomingCalls = customIncomingCalls.length > 0;
 
-          return invokeTranscript(transcript, timestamped_transcript);
-        });
+			if (hasCustomIncomingCalls) {
+				// Use custom incoming calls (override defaults)
+				console.log(
+					`Using ${customIncomingCalls.length} custom incoming calls.`
+				);
+				transcriptsToInvoke = customIncomingCalls.map(
+					(c: CustomCall) => c.transcript
+				);
+			} else if (loadedConfig.incomingCalls > 0) {
+				// Use default mock transcripts
+				console.log(
+					`Using ${loadedConfig.incomingCalls} default incoming calls from mock data.`
+				);
+				transcriptsToInvoke = Array.from(
+					{ length: loadedConfig.incomingCalls },
+					() => {
+						const randomIndex = Math.floor(
+							Math.random() * mockTranscripts.length
+						);
+						return mockTranscripts[randomIndex];
+					}
+				);
+			}
 
-        try {
-          const results = (await Promise.all(invokePromises)) as InvokeResponse[];
-          const suppressed = results
-            .filter((r) => r && r.enqueued === false && r.result?.id)
-            .map((r) => ({
-              id: r.result.id,
-              duplicate_of: r.duplicate_of ?? null,
-              notice: r.notice ?? null,
-              createdAt: Date.now(),
-            }));
-          if (suppressed.length > 0) {
-            setSuppressedNotices((prev) => {
-              const existing = new Set(prev.map((p) => p.id));
-              const merged = [...prev];
-              for (const n of suppressed) {
-                if (!existing.has(n.id)) merged.unshift(n);
-              }
-              return merged.slice(0, 50);
-            });
-          }
-          console.log(
-            `${transcriptsToInvoke.length} initial calls sent to backend.`
-          );
-          refetchQueue();
-        } catch (e: unknown) {
-          console.error("Initialization error:", e);
-          const errorMessage =
-            e instanceof Error ? e.message : "An unknown error occurred";
-          setError(errorMessage);
-        }
-      }
+			if (transcriptsToInvoke.length > 0) {
+				console.log(
+					`Sending ${transcriptsToInvoke.length} initial calls to backend...`
+				);
 
-      setIsInitializing(false);
-    };
+				const invokePromises = transcriptsToInvoke.map((transcript) => {
+					const timestamped_transcript: TimestampedTranscriptLine[] =
+						hasCustomIncomingCalls
+							? [{ text: transcript.text, time: "0:15" }]
+							: generateTimestampedTranscriptForDefaultMock(transcript);
 
-    loadConfigAndInitialize();
-  }, [refetchQueue, queryClient]);
+					return invokeTranscript(transcript, timestamped_transcript);
+				});
 
-  const handleSelectCall = useCallback((id: string) => {
-    setSelectedCallId((prevId) => (prevId === id ? null : id));
-  }, []);
+				try {
+					const results = (await Promise.all(
+						invokePromises
+					)) as InvokeResponse[];
+					const suppressed = results
+						.filter((r) => r && r.enqueued === false && r.result?.id)
+						.map((r) => ({
+							id: r.result.id,
+							duplicate_of: r.duplicate_of ?? null,
+							notice: r.notice ?? null,
+							createdAt: Date.now(),
+						}));
+					if (suppressed.length > 0) {
+						setSuppressedNotices((prev) => {
+							const existing = new Set(prev.map((p) => p.id));
+							const merged = [...prev];
+							for (const n of suppressed) {
+								if (!existing.has(n.id)) merged.unshift(n);
+							}
+							return merged.slice(0, 50);
+						});
+					}
+					console.log(
+						`${transcriptsToInvoke.length} initial calls sent to backend.`
+					);
+					refetchQueue();
+				} catch (e: unknown) {
+					console.error("Initialization error:", e);
+					const errorMessage =
+						e instanceof Error ? e.message : "An unknown error occurred";
+					setError(errorMessage);
+				}
+			}
 
-  const handleResolveCall = useCallback(
-    async (id: string) => {
-      // Idempotency guard: prevent duplicate removes
-      if (
-        userRemovedIdsRef.current.has(id) ||
-        userRemoveInFlightRef.current.has(id)
-      ) {
-        console.log(`[User] Call ${id} already removed or in-flight, skipping.`);
-        return;
-      }
+			setIsInitializing(false);
+		};
 
-      userRemoveInFlightRef.current.add(id);
-      setIsResolving(true);
+		loadConfigAndInitialize();
+	}, [refetchQueue, queryClient]);
 
-      try {
-        await removeFromQueue(id);
-        console.log(`[User] Call ${id} resolved successfully.`);
-        userRemovedIdsRef.current.add(id);
-        setSelectedCallId(null);
-        refetchQueue();
-        queryClient.invalidateQueries({ queryKey: ["incidentDetails", id] });
-      } catch (e: unknown) {
-        console.error("[User] Error resolving call:", e);
-        const errorMessage =
-          e instanceof Error ? e.message : "Failed to resolve call.";
-        setError(errorMessage);
-      } finally {
-        userRemoveInFlightRef.current.delete(id);
-        setIsResolving(false);
-      }
-    },
-    [refetchQueue, queryClient]
-  );
+	const handleSelectCall = useCallback((id: string) => {
+		setSelectedCallId((prevId) => (prevId === id ? null : id));
+	}, []);
 
-  // Calculate counts for info display
-  const customIncomingCount = config.customIncomingCalls?.length || 0;
-  const customCurrentCount = config.customCurrentCalls?.length || 0;
+	const handleResolveCall = useCallback(
+		async (id: string) => {
+			// Idempotency guard: prevent duplicate removes
+			if (
+				userRemovedIdsRef.current.has(id) ||
+				userRemoveInFlightRef.current.has(id)
+			) {
+				console.log(
+					`[User] Call ${id} already removed or in-flight, skipping.`
+				);
+				return;
+			}
 
-  // Build info summary for header
-  const infoSummary = [
-    `${config.dispatchers} Dispatchers`,
-    customIncomingCount > 0
-      ? `${customIncomingCount} custom incoming`
-      : `${config.incomingCalls} incoming`,
-    `${config.handleTime === "random" ? "Random" : config.handleTime + "m"} handle`,
-    customCurrentCount > 0 || config.initialBusyDispatchers > 0
-      ? `${customCurrentCount > 0 ? customCurrentCount : config.initialBusyDispatchers} current`
-      : null,
-    pendingCurrentCallsCount > 0 ? `${pendingCurrentCallsCount} pending` : null,
-  ]
-    .filter(Boolean)
-    .join(" | ");
+			userRemoveInFlightRef.current.add(id);
+			setIsResolving(true);
 
-  return (
-    <div className="flex flex-col h-screen font-sans bg-zinc-900 p-5">
-      {/* Header with Info centered */}
-      <div className="flex-shrink-0 flex flex-row w-full h-14 bg-zinc-800 p-3 items-center mb-3 rounded-lg justify-between">
-        <div className="flex items-center">
-          <h1 className="text-white font-bold text-xl">Delta Dispatch</h1>
-          {isInitializing && (
-            <span className="ml-4 text-sm text-zinc-400">
-              Initializing...
-            </span>
-          )}
-        </div>
+			try {
+				await removeFromQueue(id);
+				console.log(`[User] Call ${id} resolved successfully.`);
+				userRemovedIdsRef.current.add(id);
+				setSelectedCallId(null);
+				refetchQueue();
+				queryClient.invalidateQueries({ queryKey: ["incidentDetails", id] });
+			} catch (e: unknown) {
+				console.error("[User] Error resolving call:", e);
+				const errorMessage =
+					e instanceof Error ? e.message : "Failed to resolve call.";
+				setError(errorMessage);
+			} finally {
+				userRemoveInFlightRef.current.delete(id);
+				setIsResolving(false);
+			}
+		},
+		[refetchQueue, queryClient]
+	);
 
-        {/* Info summary centered */}
-        <div className="flex-1 flex justify-center">
-          <span className="text-zinc-400 text-sm">{infoSummary}</span>
-        </div>
+	// Calculate counts for info display
+	const customIncomingCount = config.customIncomingCalls?.length || 0;
+	const customCurrentCount = config.customCurrentCalls?.length || 0;
 
-        <Link href="/" className="text-zinc-400 hover:text-white text-sm">
-          ← Home
-        </Link>
-      </div>
+	// Build info summary for header
+	const infoSummary = [
+		`${config.dispatchers} Dispatchers`,
+		customIncomingCount > 0
+			? `${customIncomingCount} custom incoming`
+			: `${config.incomingCalls} incoming`,
+		`${
+			config.handleTime === "random" ? "Random" : config.handleTime + "m"
+		} handle`,
+		customCurrentCount > 0 || config.initialBusyDispatchers > 0
+			? `${
+					customCurrentCount > 0
+						? customCurrentCount
+						: config.initialBusyDispatchers
+			  } current`
+			: null,
+		pendingCurrentCallsCount > 0 ? `${pendingCurrentCallsCount} pending` : null,
+	]
+		.filter(Boolean)
+		.join(" | ");
 
-      {/* Error Banner */}
-      {error && (
-        <div className="flex-shrink-0 bg-red-900 text-white p-3 rounded-md mb-3">
-          <p>
-            <strong>Error:</strong> {error}
-          </p>
-          <button
-            onClick={() => setError(null)}
-            className="text-red-200 underline text-sm mt-1"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+	return (
+		<div className="flex flex-col h-screen font-sans bg-zinc-900 p-5">
+			{/* Header with Info centered */}
+			<div className="flex-shrink-0 flex flex-row w-full h-14 bg-zinc-800 p-3 items-center mb-3 rounded-lg justify-between">
+				<div className="flex items-center">
+					<h1 className="text-white font-bold text-xl">Delta Dispatch</h1>
+					{isInitializing && (
+						<span className="ml-4 text-sm text-zinc-400">Initializing...</span>
+					)}
+				</div>
 
-      {/* Main Content: Queue (left) + Center Panel + Right Sidebar */}
-      <div className="flex flex-row flex-1 w-full gap-3 overflow-hidden min-h-0">
-        {/* Queue Panel - Left */}
-        <div className="flex flex-col w-72 flex-shrink-0 bg-zinc-800 p-4 rounded-lg overflow-hidden">
-          <h1 className="text-white font-bold text-xl mb-2 flex-shrink-0">
-            Queue
-          </h1>
-          <div className="overflow-y-auto flex-1">
-            <Queue
-              data={isInitializing ? undefined : visibleQueue}
-              isPending={queueIsPending || isInitializing}
-              error={queueError}
-              onSelectCall={handleSelectCall}
-              selectedCallId={selectedCallId}
-              suppressedNotices={suppressedNotices}
-              onDismissSuppressed={(id) =>
-                setSuppressedNotices((prev) => prev.filter((n) => n.id !== id))
-              }
-            />
-          </div>
-        </div>
+				{/* Info summary centered */}
+				<div className="flex-1 flex justify-center">
+					<span className="text-zinc-400 text-sm">{infoSummary}</span>
+				</div>
 
-        {/* Center Panel - Action Messages */}
-        <div className="flex flex-col flex-1 bg-zinc-800 rounded-lg overflow-hidden">
-          <div className="flex items-center justify-center h-full">
-            <CallDetails incidentId={selectedCallId} onResolve={handleResolveCall} isResolving={isResolving} />
-          </div>
-        </div>
+				<Link href="/" className="text-zinc-400 hover:text-white text-sm">
+					← Home
+				</Link>
+			</div>
 
-        {/* Right Sidebar */}
-        <div className="flex flex-col w-96 flex-shrink-0 overflow-hidden">
-          <Sidebar
-            incidentId={selectedCallId}
-            onResolve={handleResolveCall}
-            isResolving={isResolving}
-            onActionClick={handleActionClick}
-            logs={dispatcherLogs}
-          />
-        </div>
-      </div>
+			{/* Error Banner */}
+			{error && (
+				<div className="flex-shrink-0 bg-red-900 text-white p-3 rounded-md mb-3">
+					<p>
+						<strong>Error:</strong> {error}
+					</p>
+					<button
+						onClick={() => setError(null)}
+						className="text-red-200 underline text-sm mt-1"
+					>
+						Dismiss
+					</button>
+				</div>
+			)}
 
-      {/* Bottom: Dispatcher Status (scrollable) */}
-      <div className="flex-shrink-0 mt-3 h-48 bg-zinc-800 rounded-lg overflow-hidden">
-        <DispatcherStatus dispatchers={dispatchers} />
-      </div>
-    </div>
-  );
+			{/* Main Content: Queue (left) + Center Panel + Right Sidebar */}
+			<div className="flex flex-row flex-1 w-full gap-3 overflow-hidden min-h-0">
+				{/* Queue Panel - Left */}
+				<div className="flex flex-col flex-[1.5] flex-shrink-0 bg-zinc-800 p-4 rounded-lg overflow-hidden">
+					<div className="overflow-y-auto flex-1">
+						<Queue
+							data={isInitializing ? undefined : visibleQueue}
+							isPending={queueIsPending || isInitializing}
+							error={queueError}
+							onSelectCall={handleSelectCall}
+							selectedCallId={selectedCallId}
+							suppressedNotices={suppressedNotices}
+							onDismissSuppressed={(id) =>
+								setSuppressedNotices((prev) => prev.filter((n) => n.id !== id))
+							}
+						/>
+					</div>
+				</div>
+
+				{/* Center Panel - Action Messages */}
+				<div className="flex flex-col h-full flex-[4]">
+					<div className="flex flex-col flex-1 bg-zinc-800 rounded-lg overflow-hidden">
+						<div className="flex items-center justify-center h-full">
+							<CallDetails
+								incidentId={selectedCallId}
+								onResolve={handleResolveCall}
+								isResolving={isResolving}
+							/>
+						</div>
+					</div>
+					<div className="flex-shrink-0 mt-3 h-48 bg-zinc-800 rounded-lg overflow-hidden">
+						<DispatcherStatus dispatchers={dispatchers} />
+					</div>
+				</div>
+
+				{/* Right Sidebar */}
+				<div className="flex flex-col flex-[2] flex-shrink-0 overflow-hidden">
+					<Sidebar
+						incidentId={selectedCallId}
+						onResolve={handleResolveCall}
+						isResolving={isResolving}
+						onActionClick={handleActionClick}
+						logs={dispatcherLogs}
+					/>
+				</div>
+			</div>
+		</div>
+	);
 }

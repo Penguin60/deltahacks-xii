@@ -29,7 +29,7 @@ interface SidebarProps {
   logs: LogEntry[];
 }
 
-type TabType = "details" | "transcript" | "logs";
+type TabType = "transcript" | "logs";
 
 const Sidebar: React.FC<SidebarProps> = ({
   incidentId,
@@ -38,7 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onActionClick,
   logs,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>("details");
+  const [activeTab, setActiveTab] = useState<TabType>("transcript");
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const { data, isPending, error } = useQuery({
@@ -62,16 +62,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const renderTabs = () => (
     <div className="flex border-b border-zinc-700 mb-4">
-      <button
-        onClick={() => setActiveTab("details")}
-        className={`flex-1 py-2 text-sm font-medium transition-colors ${
-          activeTab === "details"
-            ? "text-white border-b-2 border-blue-500"
-            : "text-zinc-400 hover:text-zinc-200"
-        }`}
-      >
-        Details
-      </button>
       <button
         onClick={() => setActiveTab("transcript")}
         className={`flex-1 py-2 text-sm font-medium transition-colors ${
@@ -133,7 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <h3 className="text-white font-semibold text-lg mb-2 flex-shrink-0">
           Call Transcript
         </h3>
-        <div className="flex-1 overflow-y-auto bg-zinc-900 rounded-md">
+        <div className="flex-1 overflow-y-auto bg-zinc-900 rounded-md hide-scrollbar">
           {data.transcript.map((entry, index) => (
             <div
               key={index}

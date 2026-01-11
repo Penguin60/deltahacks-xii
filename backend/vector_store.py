@@ -252,7 +252,7 @@ def _time_within_window(time1: str, time2: str, window_minutes: int) -> bool:
         return False
 
 def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, top_k: int = 10, 
-                           match_incident_type: bool = True, match_postal_code: bool = True, 
+                           match_incident_type: bool = True, match_postal_code: bool = False, 
                            match_date: bool = True, match_time: bool = True, 
                            time_window_minutes: int = 30) -> list:
     """

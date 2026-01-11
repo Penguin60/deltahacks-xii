@@ -25,7 +25,7 @@ export default function QueuedCall({
     <div
       className={`w-full flex justify-between items-center py-4 px-3 rounded-md cursor-pointer transition-all duration-200 ${
         isSelected
-          ? "bg-blue-600 ring-2 ring-blue-400"
+          ? "bg-blue-600"
           : "bg-zinc-700 hover:bg-zinc-600"
       }`}
       onClick={() => onSelectCall(id)}
