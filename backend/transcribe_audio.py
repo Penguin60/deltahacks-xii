@@ -41,8 +41,8 @@ def transcribe_url(src: str, call_start_time: str):
                     "type": "text",
                     "text": f"""Respond in a JSON format. Please transcribe this audio file. Every sentence, attach a timestamp in the format [mm:ss] before the corresponding text. 
                     Next, if you can determine the location from the caller's speech, create another object with key location and text that is the location or address, 
-                    otherwise create that object but leave the value as empty. Here is a complete example: {example_json}. Also, add in the {call_start_time} as shown in the example. 
-                    Do not say anything other than what is asked. Also, return the process_transcript as shown. Store the call duration in seconds as shown."""
+                    otherwise create that object but leave the value as empty. Here is a complete example: {example_json}. Also, add in the {call_start_time} as shown in the example, the format is mm:ss. 
+                    Do not say anything other than what is asked. Also, return the process_transcript as shown. Store the call duration in seconds as shown. Do not include ```json in the output."""
                 },
                 {
                     "type": "input_audio",
@@ -55,15 +55,20 @@ def transcribe_url(src: str, call_start_time: str):
     }]
     payload = {
         "model": "google/gemini-3-flash-preview",
-        "messages": messages
-        
+        "messages": messages,
+        "provider": {
+            "sort": "throughput"
+        }
     }
     response = requests.post(url, headers=headers, json=payload)
     data = response.json()
-    content = data.get("choices", [{}])[0].get("message", {}).get("content")
+    print(data)
+    content = data.get("choices", [{}])[0].get("message").get("content")
+    
     print(content)
     parsed = json.loads(content)
     return(parsed)
+    
 
 
 # NOTE: Leo I changed this to be a standalone script to test the transcribe_url function.
@@ -105,48 +110,6 @@ if __name__ == "__main__":
         "provider": {
             "sort": "throughput"
         }
-    }
-    response = requests.post(url, headers=headers, json=payload)
-
-    print(response.json())
-
-
-# NOTE: Leo I changed this to be a standalone script to test the transcribe_url function.
-# If you need to test the transcribe_url function, you can run this script.
-if __name__ == "__main__":
-    load_dotenv()
-
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-        "Content-Type": "application/json"
-    }
-
-    # Read and encode the audio file
-
-    audio_path = "transcribe_test.wav"
-
-    base64_audio = encode_audio_to_base64(audio_path)
-
-    messages = [{
-            "role": "user",
-            "content": [
-                {
-                    "type": "text",
-                    "text": "Please transcribe this audio file."
-                },
-                {
-                    "type": "input_audio",
-                    "input_audio": {
-                        "data": base64_audio,
-                        "format": "wav"
-                    }
-                }
-            ]
-    }]
-    payload = {
-        "model": "mistralai/voxtral-small-24b-2507",
-        "messages": messages
     }
     response = requests.post(url, headers=headers, json=payload)
 

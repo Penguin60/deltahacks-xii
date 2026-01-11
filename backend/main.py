@@ -77,6 +77,8 @@ async def call_agent_node(state: AgentState):
     Outputs: incidentType, location (postal code), date, time
     """
     transcript = state["transcript"]
+    if isinstance(transcript, dict):
+        transcript = TranscriptIn(**transcript)
     
     prompt = f"""You are a 911 call dispatcher assistant. Extract the following information from the caller's transcript and output ONLY a JSON object (no other text).
 
@@ -404,7 +406,7 @@ async def incoming_call(CallSid: str = Form(None)):
     response.record(finish_on_key="*", action=f"/recording-finished?CallSid={CallSid}", method="POST")
     return Response(content=str(response), media_type="application/xml")
 
-# send the recording back to Twilo to upload 
+# send the recording back to Twilio to upload 
 @app.post("/recording-finished")
 async def upload_recording(request: Request, background: BackgroundTasks):
     """Transcribes the recording."""
@@ -428,7 +430,7 @@ async def upload_recording(request: Request, background: BackgroundTasks):
 
 def transcribe_enqueue(src: str, call_start_time: str):
     content = transcribe_url(src, call_start_time)
-    asyncio.run(invoke_workflow({"transcript": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript")))
+    asyncio.run(invoke_workflow({"text": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript")))
 
 
 if __name__ == "__main__":
