@@ -9,6 +9,7 @@ from fastapi import FastAPI, Body, Response, Request, Form, HTTPException, Backg
 from pydantic import BaseModel, ValidationError
 from typing import List, Dict, Any
 from datetime import datetime
+import traceback
 from twilio.twiml.voice_response import VoiceResponse
 from backend.transcribe_audio import transcribe_url
 from backend.schemas import (
@@ -19,7 +20,7 @@ from backend.schemas import (
     IncidentType,
     SuggestedAction
 )
-from ulid import ULID
+import ulid
 
 
 # Construct the absolute path to the .env file and load it
@@ -96,14 +97,18 @@ Output ONLY valid JSON with these exact fields: incidentType, location, date, ti
 JSON:"""
     
     try:
+        print(f"[call_agent] Prompt: {prompt}")
         response = await model.ainvoke(prompt)
         json_str = _extract_json_block(response.content)
         parsed = json.loads(json_str)
         
         # Generate ULID and add required fields
-        incident_id = str(ULID())
+        incident_id = str(ulid.new())
         parsed["id"] = incident_id
         parsed["message"] = transcript.text  # Force original transcript text
+        # Ensure duration is present (LLM prompt does not request it)
+        if "duration" not in parsed or parsed["duration"] in (None, ""):
+            parsed["duration"] = transcript.duration
         
         # Validate with Pydantic
         call_incident = CallIncident(**parsed)
@@ -116,6 +121,10 @@ JSON:"""
         print(f"[call_agent] Error parsing LLM output: {e}")
         print(f"[call_agent] Raw LLM output: {response.content if 'response' in locals() else 'N/A'}")
         raise HTTPException(status_code=422, detail=f"Failed to parse call agent output: {str(e)}")
+    except Exception as e:
+        print(f"[call_agent] Unexpected error: {e}")
+        traceback.print_exc()
+        raise
 
 
 # Agent 2: assessment_agent - Add description and suggested action
@@ -141,6 +150,7 @@ Output ONLY a JSON object with these exact fields:
 JSON:"""
     
     try:
+        print(f"[assessment_agent] Prompt: {prompt}")
         response = await model.ainvoke(prompt)
         json_str = _extract_json_block(response.content)
         parsed = json.loads(json_str)
@@ -163,6 +173,10 @@ JSON:"""
         print(f"[assessment_agent] Error parsing LLM output: {e}")
         print(f"[assessment_agent] Raw LLM output: {response.content if 'response' in locals() else 'N/A'}")
         raise HTTPException(status_code=422, detail=f"Failed to parse assessment agent output: {str(e)}")
+    except Exception as e:
+        print(f"[assessment_agent] Unexpected error: {e}")
+        traceback.print_exc()
+        raise
 
 
 # Agent 3: triage_agent - Assign severity level
@@ -192,6 +206,7 @@ Output ONLY a JSON object with this exact field:
 JSON:"""
     
     try:
+        print(f"[triage_agent] Prompt: {prompt}")
         response = await model.ainvoke(prompt)
         json_str = _extract_json_block(response.content)
         parsed = json.loads(json_str)
@@ -213,6 +228,10 @@ JSON:"""
         print(f"[triage_agent] Error parsing LLM output: {e}")
         print(f"[triage_agent] Raw LLM output: {response.content if 'response' in locals() else 'N/A'}")
         raise HTTPException(status_code=422, detail=f"Failed to parse triage agent output: {str(e)}")
+    except Exception as e:
+        print(f"[triage_agent] Unexpected error: {e}")
+        traceback.print_exc()
+        raise
 
 
 # Enqueue node: Add to Redis sorted set
@@ -223,6 +242,8 @@ async def enqueue_node(state: AgentState):
     """
     triage_incident = state["triage_incident"]
     
+    print(f"TRIAGE CHECKPOINT: {triage_incident.model_dump_json()}")
+
     # Calculate priority score: current time - (severity * 30 minutes)
     # Higher severity gets a lower score (higher priority)
     severity_int = int(triage_incident.severity_level)
@@ -287,8 +308,15 @@ workflow.add_edge("enqueue", END)
 
 graph = workflow.compile()
 
+
+class InvokeRequest(BaseModel):
+    """Request body for the /invoke endpoint"""
+    transcript: TranscriptIn
+    timestamped_transcript: Any = None
+
+
 @app.post("/invoke")
-async def invoke_workflow(transcript, timestamped_transcript):
+async def invoke_workflow(request: InvokeRequest):
     """
     Process a transcript through the 3-agent pipeline and enqueue for triage.
     
@@ -296,9 +324,23 @@ async def invoke_workflow(transcript, timestamped_transcript):
     Output: TriageIncident JSON (the final incident that was enqueued)
     """
     try:
+        # Debug logging to verify request payload
+        transcript = request.transcript
+        timestamped = request.timestamped_transcript
+        print(
+            "[invoke] Received body:",
+            {
+                "text_len": len(transcript.text) if transcript and transcript.text else 0,
+                "time": transcript.time if transcript else None,
+                "location": transcript.location if transcript else None,
+                "duration": transcript.duration if transcript else None,
+                "timestamped_count": len(timestamped) if isinstance(timestamped, list) else "n/a",
+            },
+        )
+
         result = await graph.ainvoke({
-            "transcript": transcript,
-            "timestamped_transcript": timestamped_transcript,
+            "transcript": request.transcript,
+            "timestamped_transcript": request.timestamped_transcript,
         })
         
         # Return the final triage incident
@@ -312,6 +354,7 @@ async def invoke_workflow(transcript, timestamped_transcript):
         raise
     except Exception as e:
         print(f"[invoke] Unexpected error: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
 
 @app.get("/queue")
@@ -429,6 +472,7 @@ async def upload_recording(request: Request, background: BackgroundTasks):
     return Response(content=str(response), media_type="application/xml")
 
 def transcribe_enqueue(src: str, call_start_time: str):
+    import asyncio
     content = transcribe_url(src, call_start_time)
     asyncio.run(invoke_workflow({"text": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript")))
 
