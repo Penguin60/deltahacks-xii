@@ -35,8 +35,9 @@ class SuggestedAction(str, Enum):
 class TranscriptIn(BaseModel):
     """Input transcript JSON from speech-to-text API"""
     text: str
-    time: str
+    time: str # this should be HH:MM 24-hour format
     location: str  # May be nonsense, call_agent will extract/normalize
+    duration: str  # minutes and seconds
 
 
 class CallIncident(BaseModel):
@@ -46,6 +47,7 @@ class CallIncident(BaseModel):
     location: str  # Canadian postal code: L#L#L# format
     date: str  # month/day/year format
     time: str  # HH:MM 24-hour format
+    duration: str  # minutes and seconds
     message: str  # Original message from transcript
     
     @field_validator('location')
@@ -54,7 +56,7 @@ class CallIncident(BaseModel):
         """Validate and normalize Canadian postal code format"""
         # Remove spaces and convert to uppercase
         normalized = v.replace(' ', '').upper()
-        # Check format: L#L#L#
+        # Check format: L#L#L#; where L=letter, #=digit
         if not re.match(r'^[A-Z]\d[A-Z]\d[A-Z]\d$', normalized):
             # Allow through for now, LLM might produce invalid format
             # Log warning but don't fail validation
@@ -104,6 +106,7 @@ class TriageIncident(BaseModel):
     location: str  # Canadian postal code
     date: str  # month/day/year
     time: str  # HH:MM 24-hour
+    duration: str  # minutes and seconds
     message: str
     desc: str
     suggested_actions: SuggestedAction

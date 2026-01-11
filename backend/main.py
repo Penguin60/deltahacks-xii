@@ -105,6 +105,7 @@ JSON:"""
         call_incident = CallIncident(**parsed)
         
         print(f"[call_agent] Extracted incident: {call_incident.incidentType}, location: {call_incident.location}")
+        print(f"[call_incident] FULL JSON OUTPUT: {call_incident.model_dump_json()}") # check output of agent 1 
         return {"call_incident": call_incident}
         
     except (json.JSONDecodeError, ValidationError) as e:
@@ -151,6 +152,7 @@ JSON:"""
         
         print(f"[assessment_agent] Added desc: {assessment_incident.desc[:50]}...")
         print(f"[assessment_agent] Suggested action: {assessment_incident.suggested_actions}")
+        print(f"[assessment_agent] FULL JSON FROM AGENT 2: {assessment_incident.model_dump_json()}") # check the full JSON output 
         return {"assessment_incident": assessment_incident}
         
     except (json.JSONDecodeError, ValidationError) as e:
@@ -199,6 +201,8 @@ JSON:"""
         triage_incident = TriageIncident(**incident_data)
         
         print(f"[triage_agent] Assigned severity: {triage_incident.severity_level}")
+        print(f"[triage_agent] FULL JSON FROM AGENT 3: {triage_incident.model_dump_json()}") 
+        # check the full JSON output of agent 3
         return {"triage_incident": triage_incident}
         
     except (json.JSONDecodeError, ValidationError) as e:
