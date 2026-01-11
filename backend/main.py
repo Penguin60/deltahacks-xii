@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -436,7 +437,7 @@ async def remove_incident(incident_id: str):
 
 call_times = {}
 
-# incoming web hook for Twilo calls 
+# incoming web hook for Twilio calls 
 @app.post("/call")
 async def incoming_call(CallSid: str = Form(None)):
     """Webhook to receive calls."""
@@ -471,17 +472,7 @@ async def upload_recording(request: Request, background: BackgroundTasks):
 def transcribe_enqueue(src: str, call_start_time: str):
     import asyncio
     content = transcribe_url(src, call_start_time)
-    transcript = TranscriptIn(
-        text=content.get("process_transcript", ""),
-        location=content.get("location", ""),
-        time=content.get("call_start_time", ""),
-        duration=content.get("duration", "")
-    )
-    request = InvokeRequest(
-        transcript=transcript,
-        timestamped_transcript=content.get("transcript")
-    )
-    asyncio.run(invoke_workflow(request))
+    asyncio.run(invoke_workflow({"transcript": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript")))
 
 
 if __name__ == "__main__":
