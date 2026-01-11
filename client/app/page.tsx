@@ -45,7 +45,7 @@ export default function Home() {
           <Link href="/config" passHref>
             <Button
               variant="outline"
-              className="w-full h-12 text-lg border-zinc-600 hover:bg-zinc-700 text-white"
+              className="w-full h-12 text-lg border-zinc-600 hover:bg-zinc-700 text-black"
             >
               Configure Centre Settings
             </Button>

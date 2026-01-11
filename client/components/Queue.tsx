@@ -28,7 +28,7 @@ export default function Queue({
   onSelectCall,
   selectedCallId,
   suppressedNotices,
-  onDismissSuppressed,
+  onDismissSuppressed
 }: QueueProps) {
   if (isPending && !data) {
     return (
