@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchIncidentDetails, FullIncidentDetails } from "@/lib/api";
+import { fetchIncidentDetails } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import Transcript from "./Transcript";
 import { getIdSuffix } from "@/lib/ulid";
 
 // Suggested action types from backend schemas
@@ -30,7 +29,7 @@ interface SidebarProps {
   logs: LogEntry[];
 }
 
-type TabType = "details" | "logs";
+type TabType = "details" | "transcript" | "logs";
 
 const Sidebar: React.FC<SidebarProps> = ({
   incidentId,
@@ -74,6 +73,16 @@ const Sidebar: React.FC<SidebarProps> = ({
         Details
       </button>
       <button
+        onClick={() => setActiveTab("transcript")}
+        className={`flex-1 py-2 text-sm font-medium transition-colors ${
+          activeTab === "transcript"
+            ? "text-white border-b-2 border-blue-500"
+            : "text-zinc-400 hover:text-zinc-200"
+        }`}
+      >
+        Transcript
+      </button>
+      <button
         onClick={() => setActiveTab("logs")}
         className={`flex-1 py-2 text-sm font-medium transition-colors ${
           activeTab === "logs"
@@ -85,6 +94,64 @@ const Sidebar: React.FC<SidebarProps> = ({
       </button>
     </div>
   );
+
+  const renderTranscriptTab = () => {
+    if (!incidentId) {
+      return (
+        <div className="flex items-center justify-center h-full text-zinc-400 text-center">
+          Click on a queue entry to see transcript
+        </div>
+      );
+    }
+
+    if (isPending) {
+      return (
+        <div className="flex items-center justify-center h-full text-white">
+          Loading transcript...
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-red-400 p-4">
+          Error: {error.message}
+        </div>
+      );
+    }
+
+    if (!data || !data.transcript || data.transcript.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full text-zinc-400 text-center">
+          No transcript available for this call.
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <h3 className="text-white font-semibold text-lg mb-2 flex-shrink-0">
+          Call Transcript
+        </h3>
+        <div className="flex-1 overflow-y-auto bg-zinc-900 rounded-md">
+          {data.transcript.map((entry, index) => (
+            <div
+              key={index}
+              className="w-full flex justify-between items-start p-4 border-b border-zinc-800 last:border-b-0"
+            >
+              <div className="flex-1 pr-4">
+                <p className="text-white text-base">{entry.text}</p>
+                <p className="text-zinc-500 text-xs mt-1 uppercase">Caller</p>
+              </div>
+              <div className="flex-shrink-0 bg-zinc-600 px-3 py-1 rounded-full">
+                <span className="text-white text-sm">{entry.time}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const renderLogsTab = () => (
     <div className="flex flex-col h-full">
@@ -170,14 +237,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Transcript */}
-          {data.transcript && data.transcript.length > 0 && (
-            <div className="mb-4">
-              <h3 className="text-white font-semibold text-lg mb-2">Transcript</h3>
-              <Transcript transcript={data.transcript} />
-            </div>
-          )}
-
           {/* Action Buttons */}
           <div className="mb-4">
             <h3 className="text-white font-semibold text-lg mb-2">Actions</h3>
@@ -215,11 +274,24 @@ const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case "details":
+        return renderDetailsTab();
+      case "transcript":
+        return renderTranscriptTab();
+      case "logs":
+        return renderLogsTab();
+      default:
+        return renderDetailsTab();
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-zinc-800 rounded-lg p-4">
       {renderTabs()}
       <div className="flex-1 overflow-hidden">
-        {activeTab === "details" ? renderDetailsTab() : renderLogsTab()}
+        {renderActiveTab()}
       </div>
     </div>
   );
