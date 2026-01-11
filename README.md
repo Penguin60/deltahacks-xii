@@ -1,4 +1,4 @@
-# Delta Control 
+# Delta Dispatch
 
 An AI augmented 911 dispatcher system to reduce wait times and help more people in need. Check the [Devpost]() for more details.
 
