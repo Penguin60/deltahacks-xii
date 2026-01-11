@@ -38,7 +38,7 @@ Agent 3: threat ranking and reassessment
 ```JSON
 {
     "id": ULID; // unix timestamp generates a ULID
-    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "other";
+    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "Other";
     "location": Canadian postal code as a string: Letter-Number-Letter-Number-Letter-Number as string; 
     "date": "month/day/year" as string;
     "time": "04:19" 24 hour time as string;
@@ -52,7 +52,7 @@ Agent 3: threat ranking and reassessment
 ```JSON
 {
     "id": ULID; // unix timestamp generates a ULID
-    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "other";
+    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "Other";
     "location": Canadian postal code as a string: Letter-Number-Letter-Number-Letter-Number as string; 
     "date": "month/day/year" as string;
     "time": "04:19" 24 hour time as string;
@@ -73,7 +73,7 @@ Constraints: the above must follow the expected formats. call_agent JSON has the
 ```JSON 
 {
     "id": ULID; // unix timestamp generates a ULID
-    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "other";
+    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "Other";
     "location": Canadian postal code as a string: Letter-Number-Letter-Number-Letter-Number as string; 
     "date": "month/day/year" as string;
     "time": "04:19" 24 hour time as string;
@@ -92,7 +92,7 @@ Constraints: the above must follow the expected formats. call_agent JSON has the
 ```JSON
 {
     "id": ULID; // unix timestamp generates a ULID
-    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "other";
+    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "Other";
     "location": Canadian postal code as a string: Letter-Number-Letter-Number-Letter-Number as string; 
     "date": "month/day/year" as string;
     "time": "04:19" 24 hour time as string;
@@ -112,7 +112,7 @@ The triage agent's output is what the Redis sorted set stores.
 ```JSON
 {
     "id": ULID; // unix timestamp generates a ULID
-    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack";
+    "incidentType": "Public Nuisance" | "Break In" | "Armed Robbery" | "Car Theft" | "Theft" | "PickPocket" | "Fire" | "Mass Fire" | "Crowd Stampede" | "Terrorist Attack" | "Other";
     "location": Canadian postal code as a string: Letter-Number-Letter-Number-Letter-Number as string; 
     "date": "month/day/year" as string;
     "time": "04:19" 24 hour time as string;

@@ -115,7 +115,7 @@ def validate_record(record: dict) -> TriageRecord:
 
     valid_types = {
         "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", 
-        "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack"
+        "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack", "Other"
     }
     if record["incidentType"] not in valid_types:
         raise ValueError(f"Invalid incidentType: {record['incidentType']}")

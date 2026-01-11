@@ -6,6 +6,7 @@ import {
 	useQuery,
 } from "@tanstack/react-query";
 import QueuedCall from "./generic/QueuedCall";
+import { useMemo } from "react";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,11 @@ function QueueContent() {
 		refetchIntervalInBackground: false,
 	});
 
+    const sortedData = useMemo(() => {
+        if (!Array.isArray(data)) return [];
+        return [...data].sort((a, b) => Number(b.severity_level) - Number(a.severity_level))
+    }, [data])
+
 	if (isPending) return <div>Loading...</div>;
 
 	if (error) return <div>An error has occurred: {error.message}</div>;
@@ -27,7 +33,7 @@ function QueueContent() {
 
 	return (
 		<div>
-			{data.map((call: any) => (
+			{sortedData.map((call: any) => (
 				<QueuedCall
 					key={call.id}
 					type={call.incidentType}

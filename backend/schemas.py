@@ -20,7 +20,7 @@ class IncidentType(str, Enum):
     MASS_FIRE = "Mass Fire"
     CROWD_STAMPEDE = "Crowd Stampede"
     TERRORIST_ATTACK = "Terrorist Attack"
-    OTHER = "other"
+    OTHER = "Other"
 
 
 class SuggestedAction(str, Enum):

@@ -84,7 +84,7 @@ async def call_agent_node(state: AgentState):
     prompt = f"""You are a 911 call dispatcher assistant. Extract the following information from the caller's transcript and output ONLY a JSON object (no other text).
 
 Required fields:
-- incidentType: classify as one of: "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack", "other"
+- incidentType: classify as one of: "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack", "Other"
 - location: extract and format as a Canadian postal code (format: L#L#L# where L=letter, #=digit, e.g., "M5H2N2"). If unclear, make best guess.
 - date: format as "month/day/year" (e.g., "1/10/2026")
 - time: format as 24-hour time "HH:MM" (e.g., "14:30")
@@ -92,6 +92,7 @@ Required fields:
 Transcript text: {transcript.text}
 Transcript time: {transcript.time}
 Transcript location hint: {transcript.location}
+EXTREMELY_IMPORTANT: Do not enclose the JSON with 3 backticks, ```.
 
 Output ONLY valid JSON with these exact fields: incidentType, location, date, time
 JSON:"""
@@ -471,10 +472,21 @@ async def upload_recording(request: Request, background: BackgroundTasks):
     response.hangup()
     return Response(content=str(response), media_type="application/xml")
 
-def transcribe_enqueue(src: str, call_start_time: str):
+async def transcribe_enqueue(src: str, call_start_time: str):
     import asyncio
     content = transcribe_url(src, call_start_time)
-    asyncio.run(invoke_workflow({"text": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript")))
+    transcript_payload = TranscriptIn(
+        text=content.get("process_transcript", ""),
+        time=content.get("call_start_time", ""),
+        location=content.get("location", ""),
+        duration=content.get("duration", ""),
+    )
+
+    request_model = InvokeRequest(
+        transcript=transcript_payload,
+        timestamped_transcript=content.get("transcript"),
+    )
+    await invoke_workflow(request_model)
 
 
 if __name__ == "__main__":
