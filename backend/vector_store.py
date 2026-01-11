@@ -3,6 +3,7 @@ import time
 import json
 import uuid
 import re
+import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
@@ -41,7 +42,9 @@ if not pc.has_index(index_name):
     )
     print("Index created.")
 
-dense_index = pc.Index(index_name)
+# Get index host and connect using it (recommended approach for inference indexes)
+index_host = pc.describe_index(index_name).host
+dense_index = pc.Index(name=index_name, host=index_host)
 
 # --- New Schema Definitions (Triage Agent Spec) ---
 IncidentType = Literal[
@@ -174,9 +177,47 @@ def add_incident(json_data: str) -> bool:
         incident = json.loads(json_data)
         validated = validate_record(incident)
         
-        # This function signature is based on other scripts in the project.
-        dense_index.upsert_records("incidents", [validated])
-        print(f"Successfully added incident {validated['id']}")
+        # For integrated embedding indexes, upsert via REST API
+        # which converts the "desc" field to a vector automatically
+        record = dict(validated)
+        original_id = record.pop("id")
+        record["_id"] = original_id  # Rename "id" to "_id" for Pinecone
+        
+        # Pinecone metadata only supports strings, numbers, booleans, or lists of strings
+        # Convert transcript (list of objects) to a JSON string for storage
+        if "transcript" in record and isinstance(record["transcript"], list):
+            record["transcript"] = json.dumps(record["transcript"])
+            print(f"[add_incident] Serialized transcript to JSON string")
+        
+        print(f"[add_incident] Upserting record with _id={original_id}, fields={list(record.keys())}")
+        
+        # Use REST API directly (more reliable than SDK for upsert_records)
+        index_host = dense_index.describe_index_stats()  # Just to verify connection
+        
+        # Get the index host from the Pinecone client
+        namespace = "incidents"
+        api_key = os.getenv("PINECONE_API_KEY")
+        
+        # Build REST API request
+        # Get host from the index config
+        host = pc.describe_index(index_name).host
+        url = f"https://{host}/records/namespaces/{namespace}/upsert"
+        
+        headers = {
+            "Api-Key": api_key,
+            "Content-Type": "application/x-ndjson",
+            "X-Pinecone-Api-Version": "2025-10"
+        }
+        
+        # Format as NDJSON (newline-delimited JSON)
+        ndjson_data = json.dumps(record) + "\n"
+        
+        print(f"[add_incident] Posting to {url}")
+        response = requests.post(url, data=ndjson_data, headers=headers)
+        response.raise_for_status()
+        
+        print(f"[add_incident] REST API response: {response.status_code}")
+        print(f"Successfully added incident {original_id}")
         return True
     except json.JSONDecodeError as e:
         print(f"JSON parsing error: {e}")
@@ -184,8 +225,17 @@ def add_incident(json_data: str) -> bool:
     except ValueError as e:
         print(f"Validation error: {e}")
         return False
+    except requests.exceptions.RequestException as e:
+        print(f"HTTP request error: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Response body: {e.response.text}")
+        import traceback
+        traceback.print_exc()
+        return False
     except Exception as e:
         print(f"Error adding incident: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def _norm_text(s: str) -> str:

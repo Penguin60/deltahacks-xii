@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 # NOTE: this script is run once to seed dummy data to demo the VDB and filtering logic to prevent 
 # redudant entries from calls. 
-from backend.vector_store import dense_index
+from backend.vector_store import dense_index, add_incident
 
 SCHEMA_FILE = Path("backend/db.json")
 
@@ -49,8 +49,11 @@ def load_and_add_incidents(json_file: str):
                     incident[field] = [] if field == "transcript" else ""
             normalized_incidents.append(incident)
 
-        print(f"Upserting {len(normalized_incidents)} records to Pinecone namespace '{namespace}'...")
-        dense_index.upsert_records(namespace, normalized_incidents)
+        print(f"Adding {len(normalized_incidents)} records to Pinecone using add_incident helper...")
+        for incident in normalized_incidents:
+            success = add_incident(json.dumps(incident))
+            if not success:
+                print(f"[static_additions] Failed to add incident {incident.get('id', '<unknown>')}")
         
         print("Upsert command sent. Waiting 10 seconds for indexing to process...")
         time.sleep(10)
