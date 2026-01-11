@@ -4,8 +4,8 @@
 
 ### Example 1: Fire Emergency (with full data structure)
 ```bash
-curl -X POST http://localhost:8000/invoke \\
-  -H "Content-Type: application/json" \\
+curl -X POST http://localhost:8000/invoke \
+  -H "Content-Type: application/json" \
   -d '{
     "transcript": {
       "text": "My house is on fire! I need help immediately. The address is 123 Maple Street, apartment 4B.",
@@ -13,13 +13,11 @@ curl -X POST http://localhost:8000/invoke \\
       "location": "V6B1A1",
       "duration": "00:35"
     },
-    "timestamped_transcript": {
-      "transcript": [
-        { "text": "My house is on fire!", "time": "00:02" },
-        { "text": "I need help immediately.", "time": "00:05" },
-        { "text": "The address is 123 Maple Street, apartment 4B.", "time": "00:10" }
-      ]
-    }
+    "timestamped_transcript": [
+      { "text": "My house is on fire!", "time": "00:02" },
+      { "text": "I need help immediately.", "time": "00:05" },
+      { "text": "The address is 123 Maple Street, apartment 4B.", "time": "00:10" }
+    ]
   }'
 ```
 
@@ -135,3 +133,10 @@ curl http://localhost:8000/agent/01H8XGJWBWBAQ4J1VDB1M9X519
 ```
 
 **Note:** The ULID above matches the first record in `sample_incidents.json`.
+
+## DELETE /remove/{incident_id} - Remove an incident from the queue
+```bash
+curl -X DELETE http://localhost:8000/remove/01H8XGJWBWBAQ4J1VDB1M9X519
+```
+
+**Note:** The ULID above corresponds to an incident that might exist in the queue. Replace with an actual ULID from the `/queue` endpoint if needed.
