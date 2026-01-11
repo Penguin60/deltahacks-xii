@@ -1,4 +1,4 @@
-trace:
+> trace phase 1 UI:
 
 # Files Created/Modified
 Foundational
@@ -41,3 +41,45 @@ DELETE /remove/{id} only called on timer completion
 - Claimed IDs Filter: When a dispatcher claims a call, it's hidden from the queue UI immediately
 - Initial Busy Dispatchers: Pure client-side placeholders that block pickup until timer completes
 - To test, start the backend and run pnpm dev in the frontend folder.
+
+
+> trace phase 2 UI
+
+# ULID Helper (frontend/lib/ulid.ts)
+
+- Added generateUlid() function for creating unique IDs for current calls
+- Added getIdSuffix() helper to display the last 8 characters of IDs (more unique than prefix)
+
+# Config Page (frontend/app/config/page.tsx)
+
+- Added "Custom Calls" section with form to add calls
+- Users can choose Incoming (Queue) or Current (Client-only) call type
+- Each call has: text, time, location, duration (matching /invoke TranscriptIn schema)
+- Custom calls get unique client-side ULIDs
+- Lists display with remove buttons
+- Config persists to localStorage with customIncomingCalls and customCurrentCalls arrays
+
+# Dashboard Initialization (frontend/app/dashboard/page.tsx)
+
+- If custom incoming calls exist, uses those instead of default mock data
+- Otherwise falls back to incomingCalls count from config
+- Always invokes on dashboard load (no session-based skipping)
+
+# Dispatcher Simulation (frontend/hooks/useDispatchers.ts)
+
+- Supports custom current calls with ULIDs
+- Current calls queue with overflow: if more current calls than dispatchers, extras wait in a local queue
+- Dispatchers pick from pending current calls first, blocking queue pickup until all current calls are done
+- Only when no current calls remain do dispatchers start claiming from /queue
+- Uses isCurrentCall flag instead of isInitialBusy
+
+# Display ID Suffixes
+
+- DispatcherStatus: Shows ...{last 8 chars} for both current and queue calls, with color coding (orange for current, blue for queue)
+- CallDetails: Shows ...{last 8 chars} in header
+
+# Dashboard Layout
+
+- Header: Info summary moved to center (dispatchers | incoming | handle time | current | pending)
+- Main area: 2-column layout (Queue left, CallDetails right)
+- Bottom: DispatcherStatus panel (scrollable, fixed height)

@@ -2,14 +2,29 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { QueueItem, removeFromQueue } from "@/lib/api";
+import { generateUlid } from "@/lib/ulid";
+
+// TranscriptIn shape (matches backend)
+export interface TranscriptIn {
+  text: string;
+  time: string;
+  location: string;
+  duration: string;
+}
+
+// Custom call with client ID
+export interface CustomCall {
+  clientId: string;
+  transcript: TranscriptIn;
+}
 
 // Define the shape of a dispatcher object
 export interface Dispatcher {
   id: number;
   status: "idle" | "busy";
-  callId: string | null;
+  callId: string | null; // For queue calls: backend ID. For current calls: clientId.
   endTime: number | null;
-  isInitialBusy: boolean; // True if this is an initial "current call" (client-only)
+  isCurrentCall: boolean; // True if this is a current call (client-only, no backend interaction)
 }
 
 // Define the shape of the simulation configuration
@@ -19,6 +34,8 @@ export interface SimulationConfig {
   handleTime: string; // '1', '3', '5', or 'random'
   initialBusyDispatchers: number;
   initialBusyHandleTime: string;
+  customIncomingCalls?: CustomCall[];
+  customCurrentCalls?: CustomCall[];
 }
 
 // Helper to convert handleTime string to actual milliseconds
@@ -42,6 +59,7 @@ const getHandleDuration = (handleTime: string): number => {
 interface UseDispatcherReturn {
   dispatchers: Dispatcher[];
   claimedQueueIds: Set<string>;
+  pendingCurrentCallsCount: number;
 }
 
 export function useDispatchers(
@@ -54,6 +72,8 @@ export function useDispatchers(
   const [claimedQueueIds, setClaimedQueueIds] = useState<Set<string>>(
     new Set()
   );
+  // Queue of pending current calls (client-only) waiting for a dispatcher
+  const [pendingCurrentCalls, setPendingCurrentCalls] = useState<CustomCall[]>([]);
 
   // Track IDs that have already had DELETE called (idempotency guard)
   const removedIdsRef = useRef<Set<string>>(new Set());
@@ -64,41 +84,74 @@ export function useDispatchers(
   const queueRef = useRef(queue);
   queueRef.current = queue;
 
-  // Initialize dispatchers
+  // Initialize dispatchers and current calls queue
   useEffect(() => {
     const now = Date.now();
-    const initialDispatchers: Dispatcher[] = Array.from(
-      { length: config.dispatchers },
-      (_, i) => {
-        const dispatcherId = i + 1;
-        const isInitialBusy = i < config.initialBusyDispatchers;
 
-        if (isInitialBusy) {
-          // Initial busy dispatchers are client-only placeholders
-          return {
-            id: dispatcherId,
-            status: "busy" as const,
-            callId: null, // No real call ID - this is a client-side placeholder
-            endTime: now + getHandleDuration(config.initialBusyHandleTime),
-            isInitialBusy: true,
-          };
-        }
+    // Determine current calls to use
+    let currentCallsList: CustomCall[] = [];
+    if (config.customCurrentCalls && config.customCurrentCalls.length > 0) {
+      // Use custom current calls
+      currentCallsList = [...config.customCurrentCalls];
+    } else if (config.initialBusyDispatchers > 0) {
+      // Generate default current calls with ULIDs
+      currentCallsList = Array.from({ length: config.initialBusyDispatchers }, () => ({
+        clientId: generateUlid(),
+        transcript: {
+          text: "Initial busy call (simulated)",
+          time: new Date().toISOString(),
+          location: "N/A",
+          duration: "00:00",
+        },
+      }));
+    }
 
-        return {
+    // Assign current calls to dispatchers, queue overflow
+    const initialDispatchers: Dispatcher[] = [];
+    const overflowCurrentCalls: CustomCall[] = [];
+
+    for (let i = 0; i < config.dispatchers; i++) {
+      const dispatcherId = i + 1;
+      const currentCall = currentCallsList[i];
+
+      if (currentCall) {
+        // This dispatcher starts busy with a current call
+        initialDispatchers.push({
           id: dispatcherId,
-          status: "idle" as const,
+          status: "busy",
+          callId: currentCall.clientId,
+          endTime: now + getHandleDuration(config.initialBusyHandleTime),
+          isCurrentCall: true,
+        });
+      } else {
+        // This dispatcher starts idle
+        initialDispatchers.push({
+          id: dispatcherId,
+          status: "idle",
           callId: null,
           endTime: null,
-          isInitialBusy: false,
-        };
+          isCurrentCall: false,
+        });
       }
-    );
+    }
+
+    // Any remaining current calls beyond dispatcher count go to overflow queue
+    if (currentCallsList.length > config.dispatchers) {
+      overflowCurrentCalls.push(...currentCallsList.slice(config.dispatchers));
+    }
+
     setDispatchers(initialDispatchers);
+    setPendingCurrentCalls(overflowCurrentCalls);
     // Reset claimed IDs on config change
     setClaimedQueueIds(new Set());
     removedIdsRef.current = new Set();
     removeInFlightRef.current = new Set();
-  }, [config.dispatchers, config.initialBusyDispatchers, config.initialBusyHandleTime]);
+  }, [
+    config.dispatchers,
+    config.initialBusyDispatchers,
+    config.initialBusyHandleTime,
+    config.customCurrentCalls,
+  ]);
 
   const processDispatchers = useCallback(() => {
     const currentQueue = queueRef.current;
@@ -106,7 +159,6 @@ export function useDispatchers(
     setDispatchers((prevDispatchers) => {
       const newDispatchers = [...prevDispatchers];
       const newClaimedIds = new Set(claimedQueueIds);
-      let shouldRefetch = false;
 
       // First pass: check if any busy dispatchers are done
       for (let i = 0; i < newDispatchers.length; i++) {
@@ -119,12 +171,12 @@ export function useDispatchers(
         ) {
           console.log(
             `[Dispatcher ${dispatcher.id}] finished ${
-              dispatcher.isInitialBusy ? "initial busy" : `call ${dispatcher.callId}`
+              dispatcher.isCurrentCall ? `current call ${dispatcher.callId}` : `queue call ${dispatcher.callId}`
             }`
           );
 
-          // If this was a real queue call (not initial busy), send DELETE
-          if (!dispatcher.isInitialBusy && dispatcher.callId) {
+          // If this was a queue call (not current call), send DELETE
+          if (!dispatcher.isCurrentCall && dispatcher.callId) {
             const callIdToRemove = dispatcher.callId;
 
             // Idempotency check: only remove if not already removed or in-flight
@@ -166,13 +218,49 @@ export function useDispatchers(
             status: "idle",
             callId: null,
             endTime: null,
-            isInitialBusy: false,
+            isCurrentCall: false,
           };
         }
       }
 
-      // Second pass: check if any idle dispatcher can pick a call
-      if (currentQueue && currentQueue.length > 0) {
+      // Second pass: idle dispatchers pick from pending current calls first
+      setPendingCurrentCalls((prevPending) => {
+        if (prevPending.length === 0) return prevPending;
+
+        const remainingPending = [...prevPending];
+        const now = Date.now();
+
+        for (let i = 0; i < newDispatchers.length; i++) {
+          const dispatcher = newDispatchers[i];
+
+          if (dispatcher.status === "idle" && remainingPending.length > 0) {
+            const nextCurrentCall = remainingPending.shift()!;
+
+            console.log(
+              `[Dispatcher ${dispatcher.id}] picking up queued current call ${nextCurrentCall.clientId}`
+            );
+
+            newDispatchers[i] = {
+              ...dispatcher,
+              status: "busy",
+              callId: nextCurrentCall.clientId,
+              endTime: now + getHandleDuration(config.initialBusyHandleTime),
+              isCurrentCall: true,
+            };
+          }
+        }
+
+        return remainingPending;
+      });
+
+      // Third pass: only if no pending current calls, idle dispatchers pick from queue
+      // Check if there are still pending current calls
+      // Note: we use a ref-like check since setPendingCurrentCalls is async
+      // For now, we'll block queue pickup if any dispatcher is handling a current call
+      // or if there might be pending ones (conservative approach)
+      const hasCurrentCallsActive = newDispatchers.some((d) => d.isCurrentCall);
+
+      if (!hasCurrentCallsActive && currentQueue && currentQueue.length > 0) {
         for (let i = 0; i < newDispatchers.length; i++) {
           const dispatcher = newDispatchers[i];
 
@@ -193,7 +281,7 @@ export function useDispatchers(
               newClaimedIds.add(availableCall.id);
 
               console.log(
-                `[Dispatcher ${dispatcher.id}] claiming call ${availableCall.id}`
+                `[Dispatcher ${dispatcher.id}] claiming queue call ${availableCall.id}`
               );
 
               newDispatchers[i] = {
@@ -201,10 +289,8 @@ export function useDispatchers(
                 status: "busy",
                 callId: availableCall.id,
                 endTime: Date.now() + getHandleDuration(config.handleTime),
-                isInitialBusy: false,
+                isCurrentCall: false,
               };
-
-              shouldRefetch = true;
             }
           }
         }
@@ -217,12 +303,12 @@ export function useDispatchers(
 
       return newDispatchers;
     });
-  }, [config.handleTime, selectedCallId, claimedQueueIds, refetchQueue]);
+  }, [config.handleTime, config.initialBusyHandleTime, selectedCallId, claimedQueueIds, refetchQueue]);
 
   useEffect(() => {
     const interval = setInterval(processDispatchers, 1000); // Check every second
     return () => clearInterval(interval);
   }, [processDispatchers]);
 
-  return { dispatchers, claimedQueueIds };
+  return { dispatchers, claimedQueueIds, pendingCurrentCallsCount: pendingCurrentCalls.length };
 }

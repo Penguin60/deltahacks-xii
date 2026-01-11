@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchIncidentDetails } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import Transcript from "./Transcript";
+import { getIdSuffix } from "@/lib/ulid";
 
 interface CallDetailsProps {
   incidentId: string | null;
@@ -64,7 +65,7 @@ const CallDetails: React.FC<CallDetailsProps> = ({
   return (
     <div className="p-4 bg-zinc-800 rounded-lg h-full overflow-y-auto w-full">
       <h2 className="text-white font-bold text-xl mb-3">
-        Call Details: {data.id.substring(0, 8)}...
+        Call Details: ...{getIdSuffix(data.id, 8)}
       </h2>
       <div className="text-zinc-300 text-sm space-y-1 mb-4">
         <p>

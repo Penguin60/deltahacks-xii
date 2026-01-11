@@ -5,9 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Queue from "@/components/Queue";
 import DispatcherStatus from "@/components/DispatcherStatus";
 import CallDetails from "@/components/CallDetails";
-import { mockTranscripts } from "@/lib/mock-data";
-import { useDispatchers, SimulationConfig } from "@/hooks/useDispatchers";
-import { fetchQueue, invokeTranscript, removeFromQueue, QueueItem } from "@/lib/api";
+import { mockTranscripts, TranscriptIn } from "@/lib/mock-data";
+import { useDispatchers, SimulationConfig, CustomCall } from "@/hooks/useDispatchers";
+import { fetchQueue, invokeTranscript, removeFromQueue } from "@/lib/api";
 import Link from "next/link";
 
 const DEFAULT_CONFIG: SimulationConfig = {
@@ -16,6 +16,8 @@ const DEFAULT_CONFIG: SimulationConfig = {
   handleTime: "3",
   initialBusyDispatchers: 0,
   initialBusyHandleTime: "1",
+  customIncomingCalls: [],
+  customCurrentCalls: [],
 };
 
 export default function DashboardPage() {
@@ -48,7 +50,7 @@ export default function DashboardPage() {
     placeholderData: (previousData) => previousData, // Keep last good data
   });
 
-  const { dispatchers, claimedQueueIds } = useDispatchers(
+  const { dispatchers, claimedQueueIds, pendingCurrentCallsCount } = useDispatchers(
     queue,
     config,
     selectedCallId,
@@ -74,7 +76,7 @@ export default function DashboardPage() {
       try {
         const storedConfig = localStorage.getItem("simulationConfig");
         if (storedConfig) {
-          loadedConfig = JSON.parse(storedConfig);
+          loadedConfig = { ...DEFAULT_CONFIG, ...JSON.parse(storedConfig) };
         }
       } catch (e) {
         console.error(
@@ -85,33 +87,44 @@ export default function DashboardPage() {
       setConfig(loadedConfig);
 
       // Always invoke on dashboard load.
-      // This matches the desired demo behavior: when you restart the backend and reload the UI,
-      // the init requests are sent again (no session-based skipping).
-      //
-      // Also clear the cached queue so the Queue component can show skeletons during init
-      // even if React Query has previous data.
+      // Clear the cached queue so the Queue component can show skeletons during init.
       queryClient.removeQueries({ queryKey: ["queue"], exact: true });
 
-      if (loadedConfig.incomingCalls > 0) {
+      // Determine which transcripts to invoke
+      let transcriptsToInvoke: TranscriptIn[] = [];
+
+      if (loadedConfig.customIncomingCalls && loadedConfig.customIncomingCalls.length > 0) {
+        // Use custom incoming calls (override defaults)
         console.log(
-          `Sending ${loadedConfig.incomingCalls} initial calls to backend...`
+          `Using ${loadedConfig.customIncomingCalls.length} custom incoming calls.`
+        );
+        transcriptsToInvoke = loadedConfig.customIncomingCalls.map(
+          (c: CustomCall) => c.transcript
+        );
+      } else if (loadedConfig.incomingCalls > 0) {
+        // Use default mock transcripts
+        console.log(
+          `Using ${loadedConfig.incomingCalls} default incoming calls from mock data.`
+        );
+        transcriptsToInvoke = Array.from({ length: loadedConfig.incomingCalls }, () => {
+          const randomIndex = Math.floor(Math.random() * mockTranscripts.length);
+          return mockTranscripts[randomIndex];
+        });
+      }
+
+      if (transcriptsToInvoke.length > 0) {
+        console.log(
+          `Sending ${transcriptsToInvoke.length} initial calls to backend...`
         );
 
-        const invokePromises = Array.from(
-          { length: loadedConfig.incomingCalls },
-          () => {
-            const randomIndex = Math.floor(
-              Math.random() * mockTranscripts.length
-            );
-            const transcriptToSend = mockTranscripts[randomIndex];
-            return invokeTranscript(transcriptToSend);
-          }
+        const invokePromises = transcriptsToInvoke.map((transcript) =>
+          invokeTranscript(transcript)
         );
 
         try {
           await Promise.all(invokePromises);
           console.log(
-            `${loadedConfig.incomingCalls} initial calls sent to backend.`
+            `${transcriptsToInvoke.length} initial calls sent to backend.`
           );
           refetchQueue();
         } catch (e: unknown) {
@@ -166,20 +179,45 @@ export default function DashboardPage() {
     [refetchQueue, queryClient]
   );
 
+  // Calculate counts for info display
+  const customIncomingCount = config.customIncomingCalls?.length || 0;
+  const customCurrentCount = config.customCurrentCalls?.length || 0;
+
+  // Build info summary for header
+  const infoSummary = [
+    `${config.dispatchers} Dispatchers`,
+    customIncomingCount > 0
+      ? `${customIncomingCount} custom incoming`
+      : `${config.incomingCalls} incoming`,
+    `${config.handleTime === "random" ? "Random" : config.handleTime + "m"} handle`,
+    customCurrentCount > 0 || config.initialBusyDispatchers > 0
+      ? `${customCurrentCount > 0 ? customCurrentCount : config.initialBusyDispatchers} current`
+      : null,
+    pendingCurrentCallsCount > 0 ? `${pendingCurrentCallsCount} pending` : null,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
   return (
     <div className="flex flex-col h-screen font-sans bg-zinc-900 p-5">
-      {/* Header */}
-      <div className="flex-shrink-0 flex flex-row w-full h-12 bg-zinc-800 p-3 items-center mb-3 rounded-lg justify-between">
+      {/* Header with Info centered */}
+      <div className="flex-shrink-0 flex flex-row w-full h-14 bg-zinc-800 p-3 items-center mb-3 rounded-lg justify-between">
         <div className="flex items-center">
           <h1 className="text-white font-bold text-xl">Delta Dispatch</h1>
           {isInitializing && (
             <span className="ml-4 text-sm text-zinc-400">
-              Initializing calls...
+              Initializing...
             </span>
           )}
         </div>
+
+        {/* Info summary centered */}
+        <div className="flex-1 flex justify-center">
+          <span className="text-zinc-400 text-sm">{infoSummary}</span>
+        </div>
+
         <Link href="/" className="text-zinc-400 hover:text-white text-sm">
-          ← Back to Home
+          ← Home
         </Link>
       </div>
 
@@ -198,14 +236,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex flex-row flex-1 w-full gap-3 overflow-hidden">
-        {/* Queue Panel */}
-        <div className="flex flex-col flex-1 bg-zinc-800 flex-[1.5] p-4 rounded-lg overflow-hidden">
+      {/* Main Content: Queue (left) + Call Details (right) */}
+      <div className="flex flex-row flex-1 w-full gap-3 overflow-hidden min-h-0">
+        {/* Queue Panel - Left */}
+        <div className="flex flex-col flex-[1.5] bg-zinc-800 p-4 rounded-lg overflow-hidden">
           <h1 className="text-white font-bold text-xl mb-2 flex-shrink-0">
             Queue
           </h1>
-          <div className="overflow-y-auto h-full">
+          <div className="overflow-y-auto flex-1">
             <Queue
               data={isInitializing ? undefined : visibleQueue}
               isPending={queueIsPending || isInitializing}
@@ -216,56 +254,19 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Middle Panel: Dispatcher Status + Call Details */}
-        <div className="flex flex-col flex-1 flex-[4] gap-3 overflow-hidden">
-          <div className="flex flex-[5] bg-zinc-800 rounded-lg overflow-hidden">
-            <DispatcherStatus dispatchers={dispatchers} />
-          </div>
-          <div className="flex flex-[2.5] bg-zinc-800 rounded-lg overflow-hidden">
-            <CallDetails
-              incidentId={selectedCallId}
-              onResolve={handleResolveCall}
-              isResolving={isResolving}
-            />
-          </div>
+        {/* Call Details Panel - Right */}
+        <div className="flex flex-col flex-[3] bg-zinc-800 rounded-lg overflow-hidden">
+          <CallDetails
+            incidentId={selectedCallId}
+            onResolve={handleResolveCall}
+            isResolving={isResolving}
+          />
         </div>
+      </div>
 
-        {/* Right Panel: Info */}
-        <div className="flex flex-col flex-1 bg-zinc-800 flex-[2] p-4 rounded-lg">
-          <h1 className="text-white font-bold text-xl">Info</h1>
-          <div className="text-zinc-400 mt-4 text-sm space-y-2">
-            <p>
-              <strong>Dispatchers:</strong> {config.dispatchers}
-            </p>
-            <p>
-              <strong>Initial Calls:</strong> {config.incomingCalls}
-            </p>
-            <p>
-              <strong>Handle Time:</strong>{" "}
-              {config.handleTime === "random"
-                ? "Random (1/3/5 min)"
-                : `${config.handleTime} min`}
-            </p>
-            {config.initialBusyDispatchers > 0 && (
-              <>
-                <p>
-                  <strong>Initial Busy:</strong> {config.initialBusyDispatchers}
-                </p>
-                <p>
-                  <strong>Busy Handle Time:</strong>{" "}
-                  {config.initialBusyHandleTime === "random"
-                    ? "Random"
-                    : `${config.initialBusyHandleTime} min`}
-                </p>
-              </>
-            )}
-            <hr className="border-zinc-600 my-3" />
-            <p className="text-zinc-500">
-              Select a call from the queue to view its full details. Dispatchers
-              will automatically claim calls when they become idle.
-            </p>
-          </div>
-        </div>
+      {/* Bottom: Dispatcher Status (scrollable) */}
+      <div className="flex-shrink-0 mt-3 h-48 bg-zinc-800 rounded-lg overflow-hidden">
+        <DispatcherStatus dispatchers={dispatchers} />
       </div>
     </div>
   );
