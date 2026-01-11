@@ -239,6 +239,7 @@ async def enqueue_node(state: AgentState):
     }
     item_json = json.dumps(queue_entry)
     print(f"[enqueue] Queue entry payload: {item_json}")
+    print(f"ACTION: enqueue_queue {item_json}")
     
     print(f"[enqueue] Adding to queue - ID: {triage_incident.id}, Severity: {severity_int}, Score: {score}")
     await redis_client.zadd("triage_queue", {item_json: score})
@@ -256,11 +257,14 @@ async def enqueue_node(state: AgentState):
     else:
         print("[enqueue] No timestamped transcript to append to Pinecone payload")
     pinecone_json = json.dumps(triage_full_payload)
+    print(f"ACTION: enqueue_pinecone {pinecone_json}")
     pinecone_ok = add_incident(pinecone_json)
     if pinecone_ok:
         print(f"[enqueue] Pinecone: indexed incident {triage_incident.id}")
     else:
         print(f"[enqueue] Pinecone: failed to index incident {triage_incident.id}")
+    await redis_client.set(f"triage_full:{triage_incident.id}", pinecone_json)
+    print(f"[enqueue] Cached full Pinecone payload for {triage_incident.id}")
     
     return {}  # No state changes, just side effect
 
@@ -318,7 +322,56 @@ async def get_queue():
         except json.JSONDecodeError:
             print("[queue] Failed to decode queue entry:", raw_entry)
     print(f"[queue] Returning {len(queue_summary)} entries")
+    print(f"ACTION: queue_return {json.dumps(queue_summary)}")
     return queue_summary
+
+
+@app.delete("/remove/{incident_id}")
+async def remove_incident(incident_id: str):
+    raw_entries = await redis_client.zrange("triage_queue", 0, -1)
+    matched_entry = None
+    for entry in raw_entries:
+        try:
+            payload = json.loads(entry)
+        except json.JSONDecodeError:
+            continue
+        if payload.get("id") == incident_id:
+            matched_entry = entry
+            break
+
+    if not matched_entry:
+        print(f"[remove] No queue entry found for {incident_id}")
+        raise HTTPException(status_code=404, detail="Incident not found in queue")
+
+    print(f"ACTION: remove_match {matched_entry}")
+    removed = await redis_client.zrem("triage_queue", matched_entry)
+    print(f"[remove] Removed {removed} queue entries for {incident_id}")
+    print(f"ACTION: remove_result {{\"removed\": {removed}}}")
+
+    cache_key = f"triage_full:{incident_id}"
+    cached_payload = await redis_client.get(cache_key)
+    if not cached_payload:
+        print(f"[remove] No cached full payload found for {incident_id}")
+        print(f"ACTION: remove_status_update {{\"status\": \"missing cached payload\"}}")
+        return {"removed": removed, "status_update": "missing cached payload"}
+
+    try:
+        full_record = json.loads(cached_payload)
+    except json.JSONDecodeError:
+        print(f"[remove] Cached payload was malformed for {incident_id}")
+        raise HTTPException(status_code=500, detail="Cached payload corrupted")
+
+    previous_status = full_record.get("status")
+    full_record["status"] = "completed"
+    print(f"ACTION: remove_status_update {json.dumps(full_record)}")
+    status_updated = add_incident(json.dumps(full_record))
+    if status_updated:
+        print(f"[remove] Updated status from {previous_status} to completed for {incident_id}")
+        await redis_client.delete(cache_key)
+    else:
+        print(f"[remove] Failed to update Pinecone status for {incident_id}")
+
+    return {"removed": removed, "status_update": "completed" if status_updated else "failed"}
 
 
 call_times = {}

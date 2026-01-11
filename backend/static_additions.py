@@ -2,11 +2,29 @@ import json
 import os
 import time
 from pathlib import Path
+from typing import List
 from dotenv import load_dotenv
 
 # NOTE: this script is run once to seed dummy data to demo the VDB and filtering logic to prevent 
 # redudant entries from calls. 
 from backend.vector_store import dense_index
+
+SCHEMA_FILE = Path("backend/db.json")
+
+def load_schema_fields() -> List[str]:
+    """Read the schema metadata from `backend/db.json`."""
+    try:
+        with SCHEMA_FILE.open() as schema_file:
+            schema_data = json.load(schema_file)
+            fields = schema_data.get("final_payload_fields", [])
+            if not fields:
+                raise ValueError("Schema file does not define `final_payload_fields`.")
+            return fields
+    except FileNotFoundError:
+        raise
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid schema JSON: {exc}") from exc
+
 
 def load_and_add_incidents(json_file: str):
     """Load incidents from JSON file and add them to the Pinecone index."""
@@ -17,15 +35,22 @@ def load_and_add_incidents(json_file: str):
         if not incidents:
             print(f"No incidents found in {json_file}")
             return
-        
+        schema_fields = load_schema_fields()
         namespace = "incidents"
         print(f"\nFound {len(incidents)} incidents in {json_file}.")
-        print(f"Upserting records to Pinecone namespace '{namespace}'...")
-        
-        # The validation step has been removed as the record schema has changed.
-        # We are now passing the records directly to the upsert method.
-        # The 'upsert_records' method is assumed to handle the new data structure.
-        dense_index.upsert_records(namespace, incidents)
+        print(f"Enforcing schema fields from '{SCHEMA_FILE}' for each record.")
+
+        normalized_incidents = []
+        for incident in incidents:
+            missing = [field for field in schema_fields if field not in incident]
+            if missing:
+                print(f"[static_additions] Incident {incident.get('id', '<unknown>')} missing {missing}, inserting defaults.")
+                for field in missing:
+                    incident[field] = [] if field == "transcript" else ""
+            normalized_incidents.append(incident)
+
+        print(f"Upserting {len(normalized_incidents)} records to Pinecone namespace '{namespace}'...")
+        dense_index.upsert_records(namespace, normalized_incidents)
         
         print("Upsert command sent. Waiting 10 seconds for indexing to process...")
         time.sleep(10)

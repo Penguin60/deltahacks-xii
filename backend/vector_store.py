@@ -93,7 +93,7 @@ def validate_record(record: dict) -> TriageRecord:
     if record["incidentType"] not in valid_types:
         raise ValueError(f"Invalid incidentType: {record['incidentType']}")
 
-    if not re.match(r"^[A-Z]\d[A-Z] \d[A-Z]\d$", record["location"]):
+    if not re.match(r"^[A-Z]\d[A-Z]\s?\d[A-Z]\d$", record["location"]):
         raise ValueError(f"Invalid location format for postal code: {record['location']}")
 
     try:
