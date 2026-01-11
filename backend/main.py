@@ -1,18 +1,24 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from typing import TypedDict, Annotated, NotRequired
+from typing import TypedDict, NotRequired, Optional
 from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import BaseMessage
-from langgraph.graph.message import add_messages
-import operator
-from fastapi import FastAPI, Body, Response, Request, Form, BackgroundTasks
-from pydantic import BaseModel
+from fastapi import FastAPI, Body, Response, Request, Form, HTTPException
+from pydantic import BaseModel, ValidationError
 from typing import List, Dict, Any
 from datetime import datetime
 from twilio.twiml.voice_response import VoiceResponse
 from backend.transcribe_audio import transcribe_url
+from backend.schemas import (
+    TranscriptIn,
+    CallIncident,
+    AssessmentIncident,
+    TriageIncident,
+    IncidentType,
+    SuggestedAction
+)
+from ulid import ULID
 
 
 # Construct the absolute path to the .env file and load it
@@ -45,13 +51,15 @@ app.add_middleware(
 )
 
 class AgentState(TypedDict, total=False):
-    messages: Annotated[List[BaseMessage], add_messages]
-    is_duplicate: NotRequired[bool]
-    severity_level: NotRequired[int]
-    classification_prompt: NotRequired[str]
+    """State for the incident triage pipeline"""
+    transcript: NotRequired[TranscriptIn]
+    call_incident: NotRequired[CallIncident]
+    assessment_incident: NotRequired[AssessmentIncident]
+    triage_incident: NotRequired[TriageIncident]
 
 
 def _extract_json_block(content: str) -> str:
+    """Extract JSON from LLM response, handling code blocks"""
     text = content.strip()
     if "```json" in text:
         return text.split("```json", 1)[1].split("```", 1)[0].strip()
@@ -59,133 +67,214 @@ def _extract_json_block(content: str) -> str:
         return text.split("```", 1)[1].split("```", 1)[0].strip()
     return text
 
-# Agent1 node: First agent processes input
-async def agent1(state: AgentState):
-    msg = await model.ainvoke(state["messages"])
-    return {"messages": [msg]}
 
-# Middleware node: Custom function between agents (e.g., log/transform state)
-async def middleware(state: AgentState):
-    last_msg = state["messages"][-1].content
-    
-
-    print(f"Middleware: Processed '{last_msg[:50]}...'")  # Logging example
-
-    # Extract incident details to check for duplicates in the vector DB
-    extract_prompt = f"""Extract incident details from the following text into JSON format with fields: 
-    - chunk_text (summary)
-    - incidentType (one of: Public Nuisance, Break In, Armed Robbery, Car Theft, Theft, Pick Pocket, Fire, Mass Fire, Crowd Stampede, Terrorist Attack)
-    - postal_code
-    - severity_level (1, 2, or 3)
-    - date (YYYY-MM-DD)
-    - time (HH:MM)
-    
-    Text: {last_msg}
-    JSON:"""
-    
-    extraction = await model.ainvoke(extract_prompt)
-    json_str = _extract_json_block(extraction.content)
-
-    try:
-        similar = find_similar_incidents(json_str)
-        if similar:
-            print(False)
-            return {"messages": state["messages"], "is_duplicate": True}
-    except Exception as e:
-        print(f"Error checking similar incidents: {e}")
-    
-    return {"messages": state["messages"], "is_duplicate": False}
-
-def router(state: AgentState):
-    if state.get("is_duplicate"):
-        print("Duplicate incident found, ending workflow.")
-        return END
-    return "agent2"
-
-# Agent2 node: Second agent finalizes
-async def agent2(state: AgentState):
-    final_message = state["messages"][-1]
-    classification_prompt = (
-        "Classify the following incident description into a severity level from 1 (lowest) to 3 (highest). "
-        "Respond with plain JSON that includes:\n"
-        "{\n"
-        '    "level": <integer>,\n'
-        '    "prompt": <the prompt you used (short string)>\n'
-        "}\n"
-        f"Message: {final_message.content}\n"
-        "Only reply with the JSON object."
-    )
-
-    classification_result = await model.ainvoke(classification_prompt)
-    classification_json = _extract_json_block(classification_result.content)
-    severity_level = 1
-
-    try:
-        parsed = json.loads(classification_json)
-        severity_level = int(parsed.get("level", severity_level))
-    except Exception as e:
-        print(f"Unable to parse severity level: {e}")
-
-    severity_level = max(1, min(3, severity_level))
-
-    return {
-        "messages": [classification_result],
-        "severity_level": severity_level,
-        "classification_prompt": classification_prompt,
-    }
-
-async def add_to_triage_queue(state: AgentState):
+# Agent 1: call_agent - Extract core incident fields from transcript
+async def call_agent_node(state: AgentState):
     """
-    Node to add the final state to a Redis Sorted Set (ZSET) for triage.
+    Extracts caller's provided information from transcript into structured JSON.
+    Outputs: incidentType, location (postal code), date, time
     """
+    transcript = state["transcript"]
+    
+    prompt = f"""You are a 911 call dispatcher assistant. Extract the following information from the caller's transcript and output ONLY a JSON object (no other text).
 
-    print("Adding item to triage queue.")
-    final_message = state["messages"][-1]
-    severity_level = state.get("severity_level") or 1
-    prompt_used = state.get("classification_prompt") or ""
-    score = time.time() - (severity_level * 1800)
-    item = json.dumps(
-        {
-            "content": final_message.content,
-            "type": final_message.type,
-            "severity_level": severity_level,
-            "prompt": prompt_used,
-        }
-    )
-    print(f"Calculated score={score} for severity_level={severity_level}")
-    await redis_client.zadd("triage_queue", {item: score})
-    queue_snapshot = await redis_client.zrange("triage_queue", 0, -1, withscores=True)
-    print("Current triage queue:", queue_snapshot)
-    return {} # This node doesn't modify the state, just interacts with an external system
+Required fields:
+- incidentType: classify as one of: "Public Nuisance", "Break In", "Armed Robbery", "Car Theft", "Theft", "PickPocket", "Fire", "Mass Fire", "Crowd Stampede", "Terrorist Attack", "other"
+- location: extract and format as a Canadian postal code (format: L#L#L# where L=letter, #=digit, e.g., "M5H2N2"). If unclear, make best guess.
+- date: format as "month/day/year" (e.g., "1/10/2026")
+- time: format as 24-hour time "HH:MM" (e.g., "14:30")
 
-# Build linear graph: START -> agent1 -> middleware -> agent2 -> queue -> END
+Transcript text: {transcript.text}
+Transcript time: {transcript.time}
+Transcript location hint: {transcript.location}
+
+Output ONLY valid JSON with these exact fields: incidentType, location, date, time
+JSON:"""
+    
+    try:
+        response = await model.ainvoke(prompt)
+        json_str = _extract_json_block(response.content)
+        parsed = json.loads(json_str)
+        
+        # Generate ULID and add required fields
+        incident_id = str(ULID())
+        parsed["id"] = incident_id
+        parsed["message"] = transcript.text  # Force original transcript text
+        
+        # Validate with Pydantic
+        call_incident = CallIncident(**parsed)
+        
+        print(f"[call_agent] Extracted incident: {call_incident.incidentType}, location: {call_incident.location}")
+        print(f"[call_incident] FULL JSON OUTPUT: {call_incident.model_dump_json()}") # check output of agent 1 
+        return {"call_incident": call_incident}
+        
+    except (json.JSONDecodeError, ValidationError) as e:
+        print(f"[call_agent] Error parsing LLM output: {e}")
+        print(f"[call_agent] Raw LLM output: {response.content if 'response' in locals() else 'N/A'}")
+        raise HTTPException(status_code=422, detail=f"Failed to parse call agent output: {str(e)}")
+
+
+# Agent 2: assessment_agent - Add description and suggested action
+async def assessment_agent_node(state: AgentState):
+    """
+    Adds AI-generated description and suggested action based on incident details.
+    Outputs: desc (summary), suggested_actions
+    """
+    call_incident = state["call_incident"]
+    
+    prompt = f"""You are a 911 dispatcher assistant. Based on the incident details, generate a concise one-line description and suggest an appropriate action.
+
+Incident details:
+- Type: {call_incident.incidentType}
+- Location: {call_incident.location}
+- Date/Time: {call_incident.date} at {call_incident.time}
+- Caller message: {call_incident.message}
+
+Output ONLY a JSON object with these exact fields:
+- desc: a one-line description/summary of the incident (max 150 chars)
+- suggested_actions: choose ONE from: "console", "ask for more details", "dispatch officer", "dispatch first-aiders", "dispatch firefighters"
+
+JSON:"""
+    
+    try:
+        response = await model.ainvoke(prompt)
+        json_str = _extract_json_block(response.content)
+        parsed = json.loads(json_str)
+        
+        # Merge with call_incident data and add hard-coded fields
+        incident_data = call_incident.model_dump()
+        incident_data.update(parsed)
+        incident_data["status"] = "called"  # Hard-coded
+        incident_data["severity_level"] = "none"  # Hard-coded
+        
+        # Validate with Pydantic
+        assessment_incident = AssessmentIncident(**incident_data)
+        
+        print(f"[assessment_agent] Added desc: {assessment_incident.desc[:50]}...")
+        print(f"[assessment_agent] Suggested action: {assessment_incident.suggested_actions}")
+        print(f"[assessment_agent] FULL JSON FROM AGENT 2: {assessment_incident.model_dump_json()}") # check the full JSON output 
+        return {"assessment_incident": assessment_incident}
+        
+    except (json.JSONDecodeError, ValidationError) as e:
+        print(f"[assessment_agent] Error parsing LLM output: {e}")
+        print(f"[assessment_agent] Raw LLM output: {response.content if 'response' in locals() else 'N/A'}")
+        raise HTTPException(status_code=422, detail=f"Failed to parse assessment agent output: {str(e)}")
+
+
+# Agent 3: triage_agent - Assign severity level
+async def triage_agent_node(state: AgentState):
+    """
+    Classifies incident severity and prepares for queue.
+    Outputs: severity_level ("1", "2", or "3")
+    """
+    assessment_incident = state["assessment_incident"]
+    
+    prompt = f"""You are a 911 triage specialist. Classify the severity of this incident from 1 to 3:
+
+Severity levels:
+- "1": Nuisance, minor injuries, non-threatening (e.g., noise complaints, minor theft)
+- "2": Injuries inflicted, potentially life-threatening (e.g., break-ins, robberies, small fires)
+- "3": Life-threatening, urgent, immediate action required (e.g., armed robbery, mass fire, terrorist attack)
+
+Incident details:
+- Type: {assessment_incident.incidentType}
+- Description: {assessment_incident.desc}
+- Location: {assessment_incident.location}
+- Message: {assessment_incident.message}
+
+Output ONLY a JSON object with this exact field:
+- severity_level: must be "1", "2", or "3" (as a string)
+
+JSON:"""
+    
+    try:
+        response = await model.ainvoke(prompt)
+        json_str = _extract_json_block(response.content)
+        parsed = json.loads(json_str)
+        
+        # Merge with assessment data and override status
+        incident_data = assessment_incident.model_dump()
+        incident_data["severity_level"] = parsed["severity_level"]
+        incident_data["status"] = "in progress"  # Hard-coded for queue
+        
+        # Validate with Pydantic
+        triage_incident = TriageIncident(**incident_data)
+        
+        print(f"[triage_agent] Assigned severity: {triage_incident.severity_level}")
+        print(f"[triage_agent] FULL JSON FROM AGENT 3: {triage_incident.model_dump_json()}") 
+        # check the full JSON output of agent 3
+        return {"triage_incident": triage_incident}
+        
+    except (json.JSONDecodeError, ValidationError) as e:
+        print(f"[triage_agent] Error parsing LLM output: {e}")
+        print(f"[triage_agent] Raw LLM output: {response.content if 'response' in locals() else 'N/A'}")
+        raise HTTPException(status_code=422, detail=f"Failed to parse triage agent output: {str(e)}")
+
+
+# Enqueue node: Add to Redis sorted set
+async def enqueue_node(state: AgentState):
+    """
+    Add the final triage incident to Redis ZSET for queue processing.
+    Lower score = higher priority (more urgent).
+    """
+    triage_incident = state["triage_incident"]
+    
+    # Calculate priority score: current time - (severity * 30 minutes)
+    # Higher severity gets lower score (higher priority)
+    severity_int = int(triage_incident.severity_level)
+    score = time.time() - (severity_int * 1800)
+    
+    # Store the exact triage JSON
+    item_json = triage_incident.model_dump_json()
+    
+    print(f"[enqueue] Adding to queue - ID: {triage_incident.id}, Severity: {severity_int}, Score: {score}")
+    await redis_client.zadd("triage_queue", {item_json: score})
+    
+    # Log queue state
+    queue_size = await redis_client.zcard("triage_queue")
+    print(f"[enqueue] Queue size: {queue_size}")
+    
+    return {}  # No state changes, just side effect
+
+# Build the incident triage pipeline graph
+# Flow: START -> call_agent -> assessment_agent -> triage_agent -> enqueue -> END
 workflow = StateGraph(state_schema=AgentState)
-workflow.add_node("agent1", agent1)
-workflow.add_node("middleware", middleware)
-workflow.add_node("agent2", agent2)
-workflow.add_node("add_to_triage_queue", add_to_triage_queue)
+workflow.add_node("call_agent", call_agent_node)
+workflow.add_node("assessment_agent", assessment_agent_node)
+workflow.add_node("triage_agent", triage_agent_node)
+workflow.add_node("enqueue", enqueue_node)
 
-workflow.add_edge(START, "agent1")
-workflow.add_edge("agent1", "middleware")
-workflow.add_conditional_edges("middleware", router)
-workflow.add_edge("agent2", "add_to_triage_queue")
-workflow.add_edge("add_to_triage_queue", END)
+workflow.add_edge(START, "call_agent")
+workflow.add_edge("call_agent", "assessment_agent")
+workflow.add_edge("assessment_agent", "triage_agent")
+workflow.add_edge("triage_agent", "enqueue")
+workflow.add_edge("enqueue", END)
 
-graph = workflow.compile()  # No checkpointer for stateless endpoint demo
-
-class InvokeRequest(BaseModel):
-    messages: List[Dict[str, Any]]
-    config: Dict[str, Any] = {}
+graph = workflow.compile()
 
 @app.post("/invoke")
-async def invoke_workflow(req: InvokeRequest = Body(...)):
-    """FastAPI endpoint to run the linear workflow."""
-    result = await graph.ainvoke(
-        {"messages": req.messages},
-        req.config  # Optional: thread_id, etc. for persistence if checkpointer added
-    )
-
-    return {"result": result}
+async def invoke_workflow(transcript: TranscriptIn = Body(...)):
+    """
+    Process a transcript through the 3-agent pipeline and enqueue for triage.
+    
+    Input: TranscriptIn (text, time, location)
+    Output: TriageIncident JSON (the final incident that was enqueued)
+    """
+    try:
+        result = await graph.ainvoke({"transcript": transcript})
+        
+        # Return the final triage incident
+        triage_incident = result.get("triage_incident")
+        if not triage_incident:
+            raise HTTPException(status_code=500, detail="Pipeline did not produce triage incident")
+        
+        return {"result": triage_incident.model_dump()}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[invoke] Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
 
 @app.get("/queue")
 async def get_queue():
@@ -206,10 +295,9 @@ async def get_queue():
     return queue_summary
 
 
-
-
 call_times = {}
 
+# incoming web hook for Twilo calls 
 @app.post("/call")
 async def incoming_call(CallSid: str = Form(None)):
     """Webhook to receive calls."""
@@ -219,8 +307,9 @@ async def incoming_call(CallSid: str = Form(None)):
     response.record(finish_on_key="*", action=f"/recording-finished?CallSid={CallSid}", method="POST")
     return Response(content=str(response), media_type="application/xml")
 
+# send the recording back to Twilo to upload 
 @app.post("/recording-finished")
-async def upload_recording(request: Request, background: BackgroundTasks):
+async def upload_recording(request: Request):
     """Transcribes the recording."""
     form = await request.form()
     recording_url = form.get("RecordingUrl")

@@ -24,16 +24,15 @@ function QueueContent() {
 
 	if (error) return <div>An error has occurred: {error.message}</div>;
 
-	const response = data.json();
 	return (
 		<div>
-			{response.map((call: any) => (
+			{data.map((call: any) => (
 				<QueuedCall
 					key={call.id}
-					type={call.type}
+					type={call.incidentType}
 					location={call.location}
 					time={call.time}
-					severity={call.severity}
+					severity={call.severity_level}
 					callers={call.callers}
 				/>
 			))}
