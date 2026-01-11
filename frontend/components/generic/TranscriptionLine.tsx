@@ -1,3 +1,5 @@
+"use client"
+
 export default function TranscriptionLine({
   text,
   speaker,
@@ -7,8 +9,9 @@ export default function TranscriptionLine({
   speaker: string;
   time: string;
 }) {
+    console.log(text);
   return (
-    <div className="w-full flex justify-between items-center p-4">
+    <div className="w-full flex justify-between items-center py-4">
       <div>
         <h1 className="text-white">{text}</h1>
         <h3 className="text-zinc-400 text-sm">{speaker}</h3>

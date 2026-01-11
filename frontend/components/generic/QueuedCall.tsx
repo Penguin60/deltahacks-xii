@@ -1,20 +1,24 @@
 export default function QueuedCall({
   type,
+  id,
   location,
   time,
   severity,
   callers,
   suggestedAction,
+  onCallSelect
 }: {
   type: string;
+  id: string;
   location: string;
   time: string;
   severity: number;
   callers: number;
   suggestedAction?: string;
+  onCallSelect: (call: any) => void;
 }) {
   return (
-    <div className="w-full flex justify-between items-center py-4">
+    <div className="w-full flex justify-between items-center py-4" onClick={() => onCallSelect(id)}>
       <div>
         <h1 className="text-white text-2xl font-semibold mb-2 leading-none">{type}</h1>
         {/* {suggestedAction && (

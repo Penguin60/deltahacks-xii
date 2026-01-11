@@ -1,11 +1,31 @@
+"use client"
+
+import ActiveCall from "@/components/ActiveCall";
 import Queue from "@/components/Queue";
+import Transcript from "@/components/Transcript";
 import { useState } from "react";
 
 export default function Home() {
     const [activeCall, setActiveCall] = useState("");
+    const [data, setData] = useState<any>();
 
     const handleCallSelect = (callId: string) => {
         setActiveCall(callId);
+        console.log(callId);
+        fetch(`http://localhost:8000/agent/${callId}`, { cache: "no-store" })
+			.then(async (res) => {
+				if (!res.ok) throw new Error("Agent not found");
+				return res.json();
+			})
+			.then((json) => {
+				console.log(json);
+				setData(json);
+			})
+			.catch((e) => console.log(e.message));
+        fetch(`http://localhost:8000/remove/${callId}`).then(async (res) => {
+				if (!res.ok) throw new Error("Agent not found");
+				return res.json();
+			})
     };
 
 	return (
@@ -19,15 +39,13 @@ export default function Home() {
                   <Queue onCallSelect={handleCallSelect} />
                 </div>
                 <div className="flex flex-col flex-1 flex-[4] mx-3">
-                    <div className="flex flex-[5] bg-zinc-800 mb-3">
-                      
-                    </div>
-                    <div className="flex flex-[2.5] bg-zinc-800">
-
+                    <div className="flex flex-1 bg-zinc-800">
+                      <ActiveCall hangUpHandler={() => {setData("")}} data={data} />
                     </div>
                 </div>
                 <div className="flex flex-col flex-1 bg-zinc-800 flex-[2] p-4">
                     <h1 className="text-white font-bold text-xl">Transcript</h1>
+                    <Transcript data={data} />
                 </div>
             </div>
 		</div>

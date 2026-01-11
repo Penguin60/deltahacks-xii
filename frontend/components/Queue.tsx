@@ -11,7 +11,7 @@ import { useMemo } from "react";
 const queryClient = new QueryClient();
 
 type QueueProps = {
-    onCallSelect?: (call: any) => void;
+    onCallSelect: (call: any) => void;
 };
 
 
@@ -37,16 +37,18 @@ function QueueContent({ onCallSelect }: QueueProps) {
 	console.log("[Queue] fetched queue data", data);
 
 	return (
-		<div>
+		<div className="overflow-y-auto">
 			{sortedData.map((call: any) => (
 				<QueuedCall
 					key={call.id}
+                    id={call.id}
 					type={call.incidentType}
 					location={call.location}
 					time={call.time}
 					severity={Number(call.severity_level) || 1}
 					suggestedAction={call.suggested_actions}
 					callers={1}
+                    onCallSelect={onCallSelect}
 				/>
 			))}
 		</div>
