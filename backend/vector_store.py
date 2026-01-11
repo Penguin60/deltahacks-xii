@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from pinecone import Pinecone
-from typing import TypedDict, Literal
+from typing import TypedDict, Literal, List
 
 env_path = Path(__file__).parent / ".env"
 print(f"Looking for env file at {env_path.resolve()}")
@@ -58,25 +58,49 @@ Status = Literal["in progress", "completed"]
 
 SeverityLevel = Literal["1", "2", "3"]
 
-class TriageRecord(TypedDict):
-    id: str
-    incidentType: IncidentType
-    location: str
-    date: str
-    time: str
-    message: str
-    desc: str
-    suggested_actions: SuggestedActions
-    status: Status
-    severity_level: SeverityLevel
+TranscriptSegment = TypedDict(
+    "TranscriptSegment",
+    {
+        "text": str,
+        "time": str,
+    },
+)
+
+TriageRecord = TypedDict(
+    "TriageRecord",
+    {
+        "id": str,
+        "incidentType": IncidentType,
+        "location": str,
+        "date": str,
+        "time": str,
+        "duration": str,
+        "message": str,
+        "desc": str,
+        "suggested_actions": SuggestedActions,
+        "status": Status,
+        "severity_level": SeverityLevel,
+        "transcript": List[TranscriptSegment],
+    },
+)
 # --- End of New Schema ---
 
 
 def validate_record(record: dict) -> TriageRecord:
     """Validate record matches the Triage Agent JSON schema"""
     required_fields = [
-        "id", "incidentType", "location", "date", "time", 
-        "message", "desc", "suggested_actions", "status", "severity_level"
+        "id",
+        "incidentType",
+        "location",
+        "date",
+        "time",
+        "duration",
+        "message",
+        "desc",
+        "suggested_actions",
+        "status",
+        "severity_level",
+        "transcript",
     ]
     
     for field in required_fields:
@@ -118,6 +142,20 @@ def validate_record(record: dict) -> TriageRecord:
 
     if record["severity_level"] not in {"1", "2", "3"}:
         raise ValueError(f"Invalid severity_level: {record['severity_level']}. Must be '1', '2', or '3'.")
+
+    if not isinstance(record["duration"], str) or not record["duration"].strip():
+        raise ValueError("Invalid duration format. Must be a non-empty string.")
+
+    transcript_data = record.get("transcript")
+    if not isinstance(transcript_data, list) or not transcript_data:
+        raise ValueError("Transcript must be a non-empty list of segments.")
+    for idx, segment in enumerate(transcript_data):
+        if not isinstance(segment, dict):
+            raise ValueError(f"Transcript segment at index {idx} must be an object.")
+        if "text" not in segment or "time" not in segment:
+            raise ValueError(f"Transcript segment at index {idx} requires 'text' and 'time'.")
+        if not isinstance(segment["text"], str) or not isinstance(segment["time"], str):
+            raise ValueError(f"Transcript segment at index {idx} must have string values.")
     
     return record
 
