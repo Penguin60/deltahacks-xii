@@ -12,6 +12,7 @@ import {
   invokeTranscript,
   removeFromQueue,
   type TimestampedTranscriptLine,
+  type InvokeResponse,
 } from "@/lib/api";
 import Link from "next/link";
 
@@ -92,6 +93,9 @@ export default function DashboardPage() {
   const [isResolving, setIsResolving] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [dispatcherLogs, setDispatcherLogs] = useState<LogEntry[]>([]);
+  const [suppressedNotices, setSuppressedNotices] = useState<
+    Array<{ id: string; duplicate_of?: string | null; notice?: string | null; createdAt: number }>
+  >([]);
   
   // Counter for unique log IDs
   const logIdCounter = useRef(0);
@@ -103,7 +107,12 @@ export default function DashboardPage() {
       timestamp: new Date(),
       message,
     };
-    setDispatcherLogs((prev) => [...prev, newLog]);
+    setDispatcherLogs((prev) => {
+      // #region agent log (debug instrumentation)
+      fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'E',location:'client/app/dashboard/page.tsx:handleLog',message:'handleLog received dispatcher message',data:{prevLogsLen:prev.length,nextLogsLen:prev.length+1,messagePrefix:message.slice(0,80)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion agent log
+      return [...prev, newLog];
+    });
   }, []);
 
   // Track IDs that have already been removed by user (idempotency guard)
@@ -147,7 +156,11 @@ export default function DashboardPage() {
   // Filter queue to exclude claimed IDs (so user can't select them)
   const visibleQueue = useMemo(() => {
     if (!queue) return undefined;
-    return queue.filter((item) => !claimedQueueIds.has(item.id));
+    const filtered = queue.filter((item) => !claimedQueueIds.has(item.id));
+    // #region agent log (debug instrumentation)
+    fetch('http://127.0.0.1:7245/ingest/58ca92ad-3e00-4a67-a919-a612c94c967e',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'F',location:'client/app/dashboard/page.tsx:visibleQueue',message:'visibleQueue computed',data:{queueLen:queue.length,claimedQueueIdsSize:claimedQueueIds.size,visibleLen:filtered.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion agent log
+    return filtered;
   }, [queue, claimedQueueIds]);
 
   // Load config and initialize simulation on mount
@@ -215,7 +228,25 @@ export default function DashboardPage() {
         });
 
         try {
-          await Promise.all(invokePromises);
+          const results = (await Promise.all(invokePromises)) as InvokeResponse[];
+          const suppressed = results
+            .filter((r) => r && r.enqueued === false && r.result?.id)
+            .map((r) => ({
+              id: r.result.id,
+              duplicate_of: r.duplicate_of ?? null,
+              notice: r.notice ?? null,
+              createdAt: Date.now(),
+            }));
+          if (suppressed.length > 0) {
+            setSuppressedNotices((prev) => {
+              const existing = new Set(prev.map((p) => p.id));
+              const merged = [...prev];
+              for (const n of suppressed) {
+                if (!existing.has(n.id)) merged.unshift(n);
+              }
+              return merged.slice(0, 50);
+            });
+          }
           console.log(
             `${transcriptsToInvoke.length} initial calls sent to backend.`
           );
@@ -343,6 +374,10 @@ export default function DashboardPage() {
               error={queueError}
               onSelectCall={handleSelectCall}
               selectedCallId={selectedCallId}
+              suppressedNotices={suppressedNotices}
+              onDismissSuppressed={(id) =>
+                setSuppressedNotices((prev) => prev.filter((n) => n.id !== id))
+              }
             />
           </div>
         </div>
