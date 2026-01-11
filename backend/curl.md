@@ -9,7 +9,8 @@ curl -X POST http://localhost:8000/invoke \
   -d '{
     "text": "There is an armed robbery happening at the convenience store on King Street. The suspect has a gun and is threatening the cashier. Please send help immediately!",
     "time": "2026-01-10T14:30:00",
-    "location": "M5H 2N2, Toronto"
+    "location": "M5H 2N2, Toronto",
+    "duration": "03:52"
   }'
 ```
 
@@ -22,6 +23,7 @@ curl -X POST http://localhost:8000/invoke \
     "location": "M5H2N2",
     "date": "1/10/2026",
     "time": "14:30",
+    "duration": "03:52",
     "message": "There is an armed robbery happening...",
     "desc": "Armed robbery in progress at convenience store with armed suspect",
     "suggested_actions": "dispatch officer",
