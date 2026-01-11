@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from typing import TypedDict, NotRequired, Optional
 from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
-from fastapi import FastAPI, Body, Response, Request, Form, HTTPException
+from fastapi import FastAPI, Body, Response, Request, Form, HTTPException, BackgroundTasks
 from pydantic import BaseModel, ValidationError
 from typing import List, Dict, Any
 from datetime import datetime
@@ -253,7 +253,7 @@ workflow.add_edge("enqueue", END)
 graph = workflow.compile()
 
 @app.post("/invoke")
-async def invoke_workflow(transcript: TranscriptIn = Body(...)):
+async def invoke_workflow(transcript, timestamped_transcript):
     """
     Process a transcript through the 3-agent pipeline and enqueue for triage.
     
@@ -309,7 +309,7 @@ async def incoming_call(CallSid: str = Form(None)):
 
 # send the recording back to Twilo to upload 
 @app.post("/recording-finished")
-async def upload_recording(request: Request):
+async def upload_recording(request: Request, background: BackgroundTasks):
     """Transcribes the recording."""
     form = await request.form()
     recording_url = form.get("RecordingUrl")
@@ -330,8 +330,8 @@ async def upload_recording(request: Request):
     return Response(content=str(response), media_type="application/xml")
 
 def transcribe_enqueue(src: str, call_start_time: str):
-    transcribe_url(src, call_start_time)
-    # invoke_workflow here
+    content = transcribe_url(src, call_start_time)
+    invoke_workflow({"transcript": content.get("process_transcript"), "location": content.get("location", ""), "time": content.get("call_start_time"), "duration": content.get("duration")}, content.get("transcript"))
 
 
 if __name__ == "__main__":

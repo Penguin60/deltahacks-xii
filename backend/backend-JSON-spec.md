@@ -9,14 +9,27 @@ Agent 2: adds suggested action and summarization
 Agent 3: threat ranking and reassessment 
 
 
-## transcript JSON
+## processed transcript JSON
 
 ```JSON
 {
     "text": string;
-    "time": "HH:MM"; // hours: minutes 
+    "time": ISO String; // hours: minutes 
     "location": string; // may be nonsense, the call agent will extract from this and output JSON 
     "duration": "MM:SS" // minutes and seconds 
+}
+```
+
+## timestamped transcript JSON
+
+```JSON
+{
+    "transcript": [ // array
+        {
+            "text": "string",
+            "time": "SS:SS"
+        }
+    ]
 }
 ```
 
