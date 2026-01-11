@@ -56,6 +56,7 @@ def transcribe_url(src: str, call_start_time: str):
     payload = {
         "model": "google/gemini-3-pro-preview",
         "messages": messages
+        
     }
     response = requests.post(url, headers=headers, json=payload)
     data = response.json()
@@ -100,7 +101,10 @@ if __name__ == "__main__":
     }]
     payload = {
         "model": "google/gemini-3-pro-preview",
-        "messages": messages
+        "messages": messages,
+        "provider": {
+            "sort": "throughput"
+        }
     }
     response = requests.post(url, headers=headers, json=payload)
 
