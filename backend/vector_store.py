@@ -338,7 +338,7 @@ def find_similar_incidents(json_data: str, similarity_threshold: float = 0.85, t
             
             if is_exact or score >= similarity_threshold:
                 similar_incidents.append({
-                    "id": hit['id'],
+                    "id": hit.get('_id') or hit.get('id') or hit['fields'].get('_id', ''),
                     "score": round(score, 4),
                     "is_exact_duplicate": is_exact,
                     "desc": hit_text,
