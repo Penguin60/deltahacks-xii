@@ -265,7 +265,7 @@ async def enqueue_node(state: AgentState):
     pinecone_json = json.dumps(triage_full_payload)
 
     # Check for similar/duplicate incidents before adding
-    similar_incidents = find_similar_incidents(pinecone_json, similarity_threshold=0.70)
+    similar_incidents = find_similar_incidents(pinecone_json, similarity_threshold=0.7)
     if similar_incidents:
         print(f"[enqueue] Found {len(similar_incidents)} similar incident(s), skipping duplicate:")
         for dup in similar_incidents:

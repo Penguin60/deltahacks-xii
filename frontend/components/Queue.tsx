@@ -10,7 +10,12 @@ import { useMemo } from "react";
 
 const queryClient = new QueryClient();
 
-function QueueContent() {
+type QueueProps = {
+    onCallSelect?: (call: any) => void;
+};
+
+
+function QueueContent({ onCallSelect }: QueueProps) {
 	const { isPending, error, data } = useQuery({
 		queryKey: ["repoData"],
 		queryFn: () =>
@@ -48,10 +53,10 @@ function QueueContent() {
 	);
 }
 
-export default function Queue() {
+export default function Queue({ onCallSelect }: QueueProps) {
 	return (
 		<QueryClientProvider client={queryClient}>
-			<QueueContent />
+			<QueueContent onCallSelect={onCallSelect} />
 		</QueryClientProvider>
 	);
 }

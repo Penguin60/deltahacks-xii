@@ -1,6 +1,13 @@
 import Queue from "@/components/Queue";
+import { useState } from "react";
 
 export default function Home() {
+    const [activeCall, setActiveCall] = useState("");
+
+    const handleCallSelect = (callId: string) => {
+        setActiveCall(callId);
+    };
+
 	return (
 		<div className="flex flex-col min-h-screen font-sans bg-zinc-900 p-5 flex-col">
 			<div className="flex flex-row w-full h-12 bg-zinc-800 p-3 items-center">
@@ -9,7 +16,7 @@ export default function Home() {
             <div className="flex flex-row flex-1 w-full mt-3">
                 <div className="flex flex-col flex-1 bg-zinc-800 flex-[1.5] p-4">
                   <h1 className="text-white font-bold text-xl">Queue</h1>
-                  <Queue />
+                  <Queue onCallSelect={handleCallSelect} />
                 </div>
                 <div className="flex flex-col flex-1 flex-[4] mx-3">
                     <div className="flex flex-[5] bg-zinc-800 mb-3">
