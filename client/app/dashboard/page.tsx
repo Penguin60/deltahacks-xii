@@ -19,6 +19,7 @@ import {
 	type InvokeResponse,
 } from "@/lib/api";
 import Link from "next/link";
+import CallDetails from "@/components/CallDetails";
 
 const DEFAULT_CONFIG: SimulationConfig = {
 	dispatchers: 5,
@@ -386,18 +387,7 @@ export default function DashboardPage() {
         {/* Center Panel - Action Messages */}
         <div className="flex flex-col flex-1 bg-zinc-800 rounded-lg overflow-hidden">
           <div className="flex items-center justify-center h-full">
-            {actionMessage ? (
-              <div className="text-center">
-                <div className="text-green-400 text-2xl font-bold mb-2">✓</div>
-                <p className="text-white text-xl">{actionMessage}</p>
-              </div>
-            ) : (
-              <p className="text-zinc-400 text-center">
-                {selectedCallId
-                  ? "Use the action buttons in the sidebar to take action on this call."
-                  : "Select a call from the queue to get started."}
-              </p>
-            )}
+            <CallDetails incidentId={selectedCallId} onResolve={handleResolveCall} isResolving={isResolving} />
           </div>
         </div>
 
