@@ -48,14 +48,16 @@ from fastapi.middleware.cors import CORSMiddleware
 TRIAGE_FULL_PAYLOADS_LIST_KEY = "triage_full_payloads"
 
 
+""" 
+NOTE: this function is commented out; run the script for every demo instead! 
 @app.on_event("startup")
 async def startup_event():
-    """Reset full payload storage on dev server startup."""
     # Clear full payload list for a clean slate (demo/dev behavior)
+    Reset full payload storage on dev server startup
     deleted = await redis_client.delete(TRIAGE_FULL_PAYLOADS_LIST_KEY)
     print(
         f"[startup] Cleared full payload list ({TRIAGE_FULL_PAYLOADS_LIST_KEY}), deleted={deleted}"
-    )
+    ) """
 
 app.add_middleware(
     CORSMiddleware,

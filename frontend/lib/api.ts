@@ -38,15 +38,20 @@ export async function apiFetch<T>(
 /**
  * POST helper for /invoke endpoint.
  */
-export async function invokeTranscript(transcript: {
+export type TimestampedTranscriptLine = { text: string; time: string };
+
+export async function invokeTranscript(
+  transcript: {
   text: string;
   time: string;
   location: string;
   duration: string;
-}): Promise<unknown> {
+  },
+  timestamped_transcript?: TimestampedTranscriptLine[]
+): Promise<unknown> {
   return apiFetch("/invoke", {
     method: "POST",
-    body: JSON.stringify({ transcript }),
+    body: JSON.stringify({ transcript, timestamped_transcript }),
   });
 }
 
