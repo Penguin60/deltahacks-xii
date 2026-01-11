@@ -285,8 +285,61 @@ async def enqueue_node(state: AgentState):
     similar_incidents = find_similar_incidents(pinecone_json, similarity_threshold=0.7)
     if similar_incidents:
         print(f"[enqueue] Found {len(similar_incidents)} similar incident(s), skipping duplicate:")
+        # here
         for dup in similar_incidents:
             print(f"  - ID: {dup['id']}, Score: {dup['score']}, Exact: {dup['is_exact_duplicate']}")
+
+        duplicate_id = similar_incidents[0]["id"]
+        
+        # Fetch the existing incident and increment callers
+        existing_incident = get_incident_by_id(duplicate_id)
+        if existing_incident:
+            current_callers = existing_incident.get("callers", 1)
+            existing_incident["callers"] = current_callers + 1
+            updated = add_incident(json.dumps(existing_incident))
+            if updated:
+                print(f"[enqueue] Incremented callers to {existing_incident['callers']} for incident {duplicate_id}")
+            else:
+                print(f"[enqueue] Failed to update callers for incident {duplicate_id}")
+
+            try:
+                raw_entries = await redis_client.zrange("triage_queue", 0, -1, withscores=True)
+                for raw_entry, score in raw_entries:
+                    try:
+                        entry = json.loads(raw_entry)
+                    except json.JSONDecodeError:
+                        continue
+                    if entry.get("id") == duplicate_id:
+                        # Remove old entry
+                        await redis_client.zrem("triage_queue", raw_entry)
+                        # Update callers count
+                        entry["callers"] = current_callers + 1
+                        # Re-add with same score
+                        new_entry_json = json.dumps(entry)
+                        await redis_client.zadd("triage_queue", {new_entry_json: score})
+                        print(f"[enqueue] Updated Redis queue entry with callers={entry['callers']} for incident {duplicate_id}")
+                        break
+            except Exception as e:
+                print(f"[enqueue] Failed to update Redis queue for incident {duplicate_id}: {e}")
+
+            # Also update the full payload list in Redis
+            try:
+                cached_entries = await redis_client.lrange(TRIAGE_FULL_PAYLOADS_LIST_KEY, 0, -1)
+                for idx, cached_payload in enumerate(cached_entries):
+                    try:
+                        record = json.loads(cached_payload)
+                    except json.JSONDecodeError:
+                        continue
+                    if record.get("id") == duplicate_id:
+                        record["callers"] = current_callers + 1
+                        # Remove old and insert updated at same position
+                        await redis_client.lrem(TRIAGE_FULL_PAYLOADS_LIST_KEY, 1, cached_payload)
+                        await redis_client.rpush(TRIAGE_FULL_PAYLOADS_LIST_KEY, json.dumps(record))
+                        print(f"[enqueue] Updated Redis full payload with callers={record['callers']} for incident {duplicate_id}")
+                        break
+            except Exception as e:
+                print(f"[enqueue] Failed to update Redis full payload for incident {duplicate_id}: {e}")
+            
         print(f"[enqueue] Incident {triage_incident.id} NOT added (duplicate of {similar_incidents[0]['id']})")
         return {"duplicate_of": similar_incidents[0]["id"]}
 
@@ -303,6 +356,7 @@ async def enqueue_node(state: AgentState):
         "time": triage_incident.time,
         "severity_level": triage_incident.severity_level,
         "suggested_actions": _enum_value(triage_incident.suggested_actions),
+        "callers": 1,
     }
     item_json = json.dumps(queue_entry)
     print(f"[enqueue] Queue entry payload: {item_json}")
