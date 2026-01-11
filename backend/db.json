@@ -13,6 +13,11 @@
     "severity_level",
     "transcript"
   ],
+  "pinecone_storage_notes": {
+    "id_field": "Stored as '_id' in Pinecone (renamed from 'id' during upsert)",
+    "transcript_field": "Stored as a JSON string in Pinecone (serialized from array of objects)",
+    "desc_field": "Automatically converted to vector embedding by Pinecone's integrated embedding model (llama-text-embed-v2)"
+  },
   "example_final_entry": {
     "id": "01H9Z6K8Z5J1R6Q8V5XKZ8C2D5",
     "incidentType": "Armed Robbery",
@@ -39,5 +44,19 @@
         "time": "0:07"
       }
     ]
+  },
+  "example_pinecone_stored_format": {
+    "_id": "01H9Z6K8Z5J1R6Q8V5XKZ8C2D5",
+    "incidentType": "Armed Robbery",
+    "location": "M5H2N2",
+    "date": "01/10/2026",
+    "time": "14:30",
+    "duration": "00:51",
+    "message": "Help me, I'm dying. I think he has a gun. I'm at 23 Chapter Crescent, Markham.",
+    "desc": "Armed robbery with possible weapon reported at Chapter Crescent; caller needs immediate assistance.",
+    "suggested_actions": "dispatch officer",
+    "status": "in progress",
+    "severity_level": "3",
+    "transcript": "[{\"text\":\"Help me i'm dying\",\"time\":\"0:01\"},{\"text\":\"I think he has a gun\",\"time\":\"0:05\"},{\"text\":\"I'm at 23 Chapter Crescent, Markham\",\"time\":\"0:07\"}]"
   }
 }
