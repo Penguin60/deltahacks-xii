@@ -456,6 +456,8 @@ async def remove_incident(incident_id: str):
 
 
 call_times = {}
+call_numbers = {}
+# will add phone numbers
 
 # incoming web hook for Twilio calls 
 @app.post("/call")

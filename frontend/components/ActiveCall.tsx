@@ -11,7 +11,7 @@ export default function ActiveCall({ data, hangUpHandler }: { data: any; hangUpH
 
       <div className="mt-3 flex gap-2">
         <span className="px-3 py-1 rounded-full bg-zinc-700 text-sm text-zinc-200">
-          {data.result.startedAgo}
+          {data.result.time}
         </span>
       </div>
 
